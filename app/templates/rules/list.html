@@ -11,7 +11,7 @@
 <ul class="cards">
 {% for r in rules %}
   <li class="card {{ 'archived' if not r.is_enabled }}">
-    <div class="card-main">
+    <div class="card-main wrap">
       <strong>{{ r.name or r.pattern or r.bank_type_equals }}</strong>
       <span class="muted">
         #{{ r.priority }} ·

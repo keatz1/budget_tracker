@@ -1,5 +1,7 @@
 # Household Budget Tracker: Build Plan
 
+> **Status (Sep 20 2026):** Phases 0 to 7 are built. See [README.md](README.md) to run it. Phase 8 items (splits, recurring detection, transfer pairing, tags) are not started.
+
 A self-hosted budget tracker for two people. Runs on a laptop today, on a Raspberry Pi later. Reachable by IP on the home network. Simpler than PocketGuard: import bank CSVs, sort transactions into categories, set monthly budgets that roll over, and see where the money went.
 
 ## 1. Decisions

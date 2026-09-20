@@ -13,7 +13,7 @@
   <li class="card {{ 'archived' if a.is_archived }}">
     <div class="card-main">
       <strong>{{ a.name }}</strong>
-      <span class="muted">{{ a.institution or '' }} · {{ a.kind }}{% if a.csv_profile %} · {{ a.csv_profile.name }}{% endif %}</span>
+      <span class="muted">{% if a.institution %}{{ a.institution }} · {% endif %}{{ a.kind }}{% if a.csv_profile %} · {{ a.csv_profile.name }}{% endif %}</span>
     </div>
     <div class="card-side">
       <span class="muted">{{ counts.get(a.id, 0) }} txns</span>

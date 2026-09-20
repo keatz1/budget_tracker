@@ -87,6 +87,10 @@ class Category(Base):
     rollover_start: Mapped[str | None] = mapped_column(String(7))  # YYYY-MM
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    @property
+    def group(self) -> str:
+        return self.group_name or "Other"
+
 
 class Budget(Base):
     __tablename__ = "budgets"

@@ -10,7 +10,7 @@
 </header>
 <p class="muted small">"Every month" is the default. "{{ month | month_label }}" overrides it for this month only. Rollover carries what's left (or overspent) into the next month per the category's setting.</p>
 <form method="post" action="/budgets?month={{ month }}" hx-boost="false">
-{% for group, rows in s.rows | groupby('category.group_name') %}
+{% for group, rows in s.rows | groupby('category.group') %}
 <section class="panel">
   <h2>{{ group or 'Other' }}</h2>
   <div class="table-wrap"><table>

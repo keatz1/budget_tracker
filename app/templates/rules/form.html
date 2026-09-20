@@ -24,7 +24,7 @@
   <div class="row">
     <label>Set category
       <select name="category_id"><option value="">leave as is</option>
-        {% for group, items in cats | groupby('group_name') %}<optgroup label="{{ group or 'Other' }}">{% for c in items %}<option value="{{ c.id }}" {{ 'selected' if (r and r.category_id == c.id) or (not r and prefill.get('category_id') == c.id) }}>{{ c.name }}</option>{% endfor %}</optgroup>{% endfor %}
+        {% for group, items in cats | groupby('group') %}<optgroup label="{{ group or 'Other' }}">{% for c in items %}<option value="{{ c.id }}" {{ 'selected' if (r and r.category_id == c.id) or (not r and prefill.get('category_id') == c.id) }}>{{ c.name }}</option>{% endfor %}</optgroup>{% endfor %}
       </select>
     </label>
     <label>Assign to sub-budget

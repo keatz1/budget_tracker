@@ -106,7 +106,7 @@ def anchor_month(db: Session, category: Category, up_to: str) -> str:
         return up_to
     start = month_key(first)
     floor = shift_month(up_to, -MAX_LOOKBACK_MONTHS)
-    return max(start, floor)
+    return min(max(start, floor), up_to)
 
 
 def rollover_series(

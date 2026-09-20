@@ -140,6 +140,33 @@ details summary { cursor: pointer; padding: 8px 0; color: var(--accent); }
 .tile .label { color: var(--muted); font-size: .8rem; }
 .tile .value { font-size: 1.4rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* pills */
+.pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.pill { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: .9rem; min-height: 36px; display: inline-flex; align-items: center; }
+.pill.active { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+.pill:hover { text-decoration: none; }
+
+/* segmented tracker bar */
+.bar.seg { display: flex; }
+.bar.seg > span { display: block; height: 100%; border-radius: 0; }
+.bar.seg > span:first-child { border-radius: 999px 0 0 999px; }
+.bar.seg > span:last-of-type { border-radius: 0 999px 999px 0; }
+.bar.seg > span:first-child:last-of-type { border-radius: 999px; }
+.bar.seg .seg-deficit { background: var(--warn); }
+.bar.seg .seg-spent { background: var(--accent); }
+.bar.seg.over .seg-spent { background: var(--danger); }
+.bar.seg .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: .7; }
+.bar.seg { overflow: visible; }
+.group-total { border-bottom: 2px solid var(--border); }
+.group-total .name { color: var(--muted); }
+.tiles.four { grid-template-columns: repeat(2, 1fr); margin-bottom: 12px; }
+@media (min-width: 640px) { .tiles.four { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 639px) {
+  .budget-row.stack { grid-template-columns: 1fr; }
+  .budget-row.stack .nums { text-align: left; white-space: normal; }
+}
+.legend-swatch { display: inline-block; width: 12px; height: 10px; border-radius: 3px; vertical-align: middle; }
+
 /* progress bars */
 .bar { height: 10px; background: var(--surface-2); border-radius: 999px; overflow: hidden; position: relative; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }

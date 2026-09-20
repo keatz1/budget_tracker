@@ -7,7 +7,7 @@
     <button type="button" data-value="exclude" data-label="Exclude">Exclude from tracking</button>
     <button type="button" data-value="transfer" data-label="Transfer">Mark as transfer</button>
     {% endif %}
-    {% for group, items in cats | groupby('group_name') %}
+    {% for group, items in cats | groupby('group') %}
     <div class="group">{{ group or 'Other' }}</div>
     {% for c in items %}
     <button type="button" data-value="{{ c.id }}" data-label="{{ c.name }}"><span class="swatch" style="background:{{ c.colour }}"></span>{{ c.name }}</button>

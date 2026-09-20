@@ -4,7 +4,7 @@
 <header class="page-head"><h1>Categories</h1>
   <div class="actions"><a class="button small" href="/budgets">Budgets</a><a class="button primary small" href="/categories/new">New</a></div>
 </header>
-{% for group, items in cats | groupby('group_name') %}
+{% for group, items in cats | groupby('group') %}
 <section class="panel">
   <h2>{{ group or 'Other' }}</h2>
   <ul class="cards">

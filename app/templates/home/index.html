@@ -34,7 +34,7 @@
   <p class="muted small" style="margin:6px 0 0">{{ '%.0f' % s.pct }}% of this month's budget spent{% if s.total_budget != s.total_available %} · budgets {{ s.total_budget | money }} {{ '+' if s.total_available > s.total_budget else '−' }} {{ (s.total_available - s.total_budget) | abs | money }} carried{% endif %}</p>
 </section>
 
-{% for group, rows in s.rows | groupby('category.group_name') %}
+{% for group, rows in s.rows | groupby('category.group') %}
 {% set live = rows | selectattr('state.available') | list + rows | selectattr('state.spent') | list %}
 {% if live %}
 <section class="panel">
@@ -90,5 +90,5 @@
   {% endfor %}
 </section>
 {% endif %}
-<p class="muted small"><a href="/budgets?month={{ month }}">Edit budgets</a> · <a href="/dashboards">Dashboards</a></p>
+<p class="muted small"><a href="/groups?month={{ month }}">By group</a> · <a href="/budgets?month={{ month }}">Edit budgets</a> · <a href="/dashboards">Dashboards</a></p>
 {% endblock %}

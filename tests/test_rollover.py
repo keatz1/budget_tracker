@@ -135,3 +135,13 @@ def test_month_summary_totals_include_uncategorised_and_sub_budgets(logged_in, d
     assert travel.state.spent == 25000 and travel.state.sub_budget_spent == 25000
     st = sub_budget_states(db)[0]
     assert st.spent == 25000 and st.remaining == 75000 and st.count == 1 and st.pct == 25.0
+
+
+def test_month_before_any_transaction_is_empty_not_an_error(logged_in, db):
+    c = Category(name="Pets", default_budget=10000)
+    db.add(c)
+    db.commit()
+    spend(db, c, "2026-08-01", 500)
+    series = rollover_series(db, c, "2020-01")
+    assert [s.month for s in series] == ["2020-01"] and series[0].spent == 0
+    assert logged_in.get("/?month=2020-01").status_code == 200

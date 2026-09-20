@@ -20,6 +20,7 @@
     <label>Rollover starts (YYYY-MM, optional) <input type="text" name="rollover_start" value="{{ cat.rollover_start or '' if cat else '' }}" placeholder="Defaults to first month with spending"></label>
     <label>Kind
       <select name="kind"><option value="expense" {{ 'selected' if not cat or cat.kind == 'expense' }}>Expense</option><option value="income" {{ 'selected' if cat and cat.kind == 'income' }}>Income</option></select>
+      <small class="muted">Income categories have no budget. They collect money in and show as a total on the month page.</small>
     </label>
     <label>Sort order <input type="number" name="sort_order" value="{{ cat.sort_order if cat else 0 }}"></label>
   </div>

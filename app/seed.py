@@ -152,6 +152,14 @@ def seed(db: Session) -> None:
     if db.scalar(select(Category.id).limit(1)) is None:
         for i, (group, name, colour) in enumerate(STARTER_CATEGORIES):
             db.add(Category(name=name, group_name=group, colour=colour, sort_order=i))
+    if db.scalar(select(Category.id).where(Category.kind == "income").limit(1)) is None:
+        for i, name in enumerate(["Salary", "Reimbursements", "Other income"]):
+            db.add(
+                Category(
+                    name=name, group_name="Income", kind="income", colour="#008300",
+                    sort_order=900 + i, rollover_mode="none",
+                )
+            )  # fmt: skip
     if db.scalar(select(Rule.id).limit(1)) is None:
         for r in DEFAULT_RULES:
             db.add(Rule(**r))

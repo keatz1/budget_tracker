@@ -66,6 +66,18 @@
 </section>
 {% endif %}
 
+{% if s.total_income %}
+<section class="panel">
+  <h2>Income <span class="muted small">{{ s.total_income | money }} this month</span></h2>
+  {% for r in s.income_categories %}{% if r.state.received %}
+  <div class="budget-row">
+    <span class="name"><span class="swatch" style="background:{{ r.category.colour }}"></span><a href="/transactions?month={{ month }}&category_id={{ r.category.id }}&show=all">{{ r.category.name }}</a></span>
+    <span class="nums"><strong class="pos">{{ r.state.received | money(sign=True) }}</strong></span>
+  </div>
+  {% endif %}{% endfor %}
+</section>
+{% endif %}
+
 {% if subs %}
 <section class="panel">
   <h2>Sub-budgets</h2>

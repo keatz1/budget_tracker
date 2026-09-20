@@ -39,11 +39,11 @@ def _group_key(t: Transaction) -> str:
     return suggest_pattern(t.description_clean)
 
 
-def _pending(db, import_id: int | None):
+def _pending(db, import_id: int | None, kind: str = "expense"):
     stmt = (
         select(Transaction)
         .where(
-            Transaction.kind == "expense",
+            Transaction.kind == kind,
             Transaction.is_excluded.is_(False),
             Transaction.category_id.is_(None),
         )
@@ -75,6 +75,7 @@ def build_groups(txns) -> list[Group]:
 def queue(request: Request, db: DB, user: CurrentUser, import_id: int | None = None):
     txns = _pending(db, import_id)
     groups = build_groups(txns)
+    income_groups = build_groups(_pending(db, import_id, "income"))
     cats = db.scalars(
         select(Category)
         .where(Category.is_archived.is_(False))
@@ -84,6 +85,7 @@ def queue(request: Request, db: DB, user: CurrentUser, import_id: int | None = N
         request,
         "review/queue.html",
         groups=groups,
+        income_groups=income_groups,
         count=len(txns),
         cats=cats,
         import_id=import_id,
@@ -98,7 +100,9 @@ async def assign(request: Request, db: DB, user: CurrentUser):
     value = str(form.get("value") or "")
     make_rule = form.get("make_rule") == "1"
     import_id = str(form.get("import_id") or "")
-    txns = [t for t in _pending(db, int(import_id) if import_id else None) if _group_key(t) == key]
+    kind = "income" if form.get("kind") == "income" else "expense"
+    pending = _pending(db, int(import_id) if import_id else None, kind)
+    txns = [t for t in pending if _group_key(t) == key]
     if not txns:
         return redirect("/review", flash="Those are already done.")
     batch = new_batch()
@@ -136,7 +140,7 @@ async def assign(request: Request, db: DB, user: CurrentUser):
         db.add(rule)
         db.flush()
         # Apply the new rule to anything else uncategorised it matches.
-        rest = [t for t in _pending(db, None) if t not in txns]
+        rest = [t for t in _pending(db, None, kind) if t not in txns]
         apply_rules(db, rest, [rule])
     db.commit()
     back = f"/review?import_id={import_id}" if import_id else "/review"

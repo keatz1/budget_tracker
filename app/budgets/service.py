@@ -4,7 +4,7 @@
 import datetime as dt
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import Budget, Category, SubBudget, Transaction
@@ -20,6 +20,11 @@ class MonthState:
     carry: int  # carried in from last month (can be negative in carry_all)
     spent: int
     sub_budget_spent: int = 0  # portion of `spent` that belongs to sub-budgets
+
+    @property
+    def received(self) -> int:
+        """For income categories: money in, as a positive number."""
+        return -self.spent
 
     @property
     def available(self) -> int:
@@ -61,7 +66,12 @@ def budgets_for(db: Session, months: list[str]) -> dict[tuple[int, str], int]:
 def spend_by_category(
     db: Session, start: str, end: str
 ) -> dict[tuple[int | None, str], tuple[int, int]]:
-    """(category_id, month) -> (spent, spent_in_sub_budgets), positive cents."""
+    """(category_id, month) -> (spent, spent_in_sub_budgets), positive cents.
+
+    Income rows assigned to a category count as negative spend, so a reimbursement put
+    under Groceries reduces Groceries, and an income category comes out negative
+    (money received). Uncategorised income is left out; only uncategorised expenses
+    land in the (None, month) bucket."""
     lo, _ = month_bounds(start)
     _, hi = month_bounds(end)
     ym = func.strftime("%Y-%m", Transaction.date)
@@ -73,8 +83,9 @@ def spend_by_category(
             func.sum(func.iif(Transaction.sub_budget_id.isnot(None), -Transaction.amount, 0)),
         )
         .where(
-            Transaction.kind == "expense",
+            Transaction.kind != "transfer",
             Transaction.is_excluded.is_(False),
+            or_(Transaction.category_id.isnot(None), Transaction.kind == "expense"),
             Transaction.date >= lo,
             Transaction.date <= hi,
         )
@@ -88,7 +99,7 @@ def anchor_month(db: Session, category: Category, up_to: str) -> str:
         return min(category.rollover_start, up_to)
     first = db.scalar(
         select(func.min(Transaction.date)).where(
-            Transaction.category_id == category.id, Transaction.kind == "expense"
+            Transaction.category_id == category.id, Transaction.kind != "transfer"
         )
     )
     if first is None:
@@ -135,6 +146,10 @@ class MonthSummary:
     rows: list[CategoryMonth] = field(default_factory=list)
     uncategorised: int = 0  # spend with no category
     income_categories: list[CategoryMonth] = field(default_factory=list)
+
+    @property
+    def total_income(self) -> int:
+        return sum(r.state.received for r in self.income_categories)
 
     @property
     def total_budget(self) -> int:

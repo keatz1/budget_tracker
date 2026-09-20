@@ -1,14 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Review{% endblock %}
 {% block content %}
-<header class="page-head">
-  <h1>Review</h1>
-  <span class="sub">{{ count }} uncategorised{% if import_id %} from this import · <a href="/review">show all</a>{% endif %}</span>
-</header>
-{% if not groups %}
-<p class="empty">All caught up. Every spending transaction has a category.</p>
-{% else %}
-<p class="muted small">Grouped by merchant. Pick a category once and it applies to the whole group. Leave "make a rule" on and future imports sort themselves.</p>
+{% macro grouplist(groups, kind) %}
 <ul class="cards">
 {% for g in groups %}
   <li class="card review-card">
@@ -21,19 +14,35 @@
         {% if g.txns | length > 8 %}<div class="muted small">…and {{ g.txns | length - 8 }} more</div>{% endif %}
       </details>
     </div>
-    <form method="post" action="/review/assign" class="review-actions" hx-boost="false" id="g-{{ loop.index }}">
+    <form method="post" action="/review/assign" class="review-actions" hx-boost="false" id="g-{{ kind }}-{{ loop.index }}">
       <input type="hidden" name="key" value="{{ g.key }}">
       <input type="hidden" name="action" value="category">
+      <input type="hidden" name="kind" value="{{ kind }}">
       <input type="hidden" name="value" value="">
       {% if import_id %}<input type="hidden" name="import_id" value="{{ import_id }}">{% endif %}
       <label class="check small" style="margin:0"><input type="checkbox" name="make_rule" value="1" checked> make a rule</label>
-      <button type="button" class="small primary" onclick="pick('g-{{ loop.index }}')">Category…</button>
-      <button type="submit" class="small" onclick="setAction('g-{{ loop.index }}','exclude')">Exclude</button>
-      <button type="submit" class="small" onclick="setAction('g-{{ loop.index }}','transfer')">Transfer</button>
+      <button type="button" class="small primary" onclick="pick('g-{{ kind }}-{{ loop.index }}')">Category…</button>
+      <button type="submit" class="small" onclick="setAction('g-{{ kind }}-{{ loop.index }}','exclude')">Exclude</button>
+      <button type="submit" class="small" onclick="setAction('g-{{ kind }}-{{ loop.index }}','transfer')">Transfer</button>
     </form>
   </li>
 {% endfor %}
 </ul>
+{% endmacro %}
+<header class="page-head">
+  <h1>Review</h1>
+  <span class="sub">{{ count }} uncategorised{% if import_id %} from this import · <a href="/review">show all</a>{% endif %}</span>
+</header>
+{% if not groups %}
+<p class="empty">All caught up. Every spending transaction has a category.</p>{% if income_groups %}<p class="muted small" style="text-align:center">Income below still needs one.</p>{% endif %}
+{% else %}
+<p class="muted small">Grouped by merchant. Pick a category once and it applies to the whole group. Leave "make a rule" on and future imports sort themselves.</p>
+{{ grouplist(groups, 'expense') }}
+{% endif %}
+{% if income_groups %}
+<h2 style="margin-top:20px">Income without a category</h2>
+<p class="muted small">Money in. Put it in an income category (Salary, Refunds…) so it shows on the month page, or under a spending category to offset that spending, or exclude it.</p>
+{{ grouplist(income_groups, 'income') }}
 {% endif %}
 {% set sheet_extra = false %}
 {% include "partials/category_sheet.html" %}

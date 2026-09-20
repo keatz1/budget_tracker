@@ -7,9 +7,9 @@
     <span class="acct-m">{{ t.account.name }}</span>
     {% if t.card_holder %}<span>{{ t.card_holder.split(' ')[0] }}</span>{% endif %}
     {% if t.kind == 'transfer' %}<span class="chip">transfer</span>
-    {% elif t.kind == 'income' %}<span class="chip">income</span>
-    {% elif t.is_excluded %}<span class="chip">excluded</span>
+    {% elif t.is_excluded %}<span class="chip">excluded{% if t.kind == 'income' %} income{% endif %}</span>
     {% else %}
+    {% if t.kind == 'income' %}<span class="chip">income</span>{% endif %}
     <button type="button" class="chip {{ 'uncat' if not t.category }}" onclick="pickCategory({{ t.id }})">
       {% if t.category %}<span class="swatch" style="background:{{ t.category.colour }}"></span>{{ t.category.name }}{% else %}Categorise{% if t.bank_category %} · bank: {{ t.bank_category }}{% endif %}{% endif %}
     </button>

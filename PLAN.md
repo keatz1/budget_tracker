@@ -44,7 +44,7 @@ categories       id, name, group_name, kind (expense|income), colour, sort_order
 budgets          id, category_id, month (YYYY-MM), amount        -- one row per category per month
                  (a category also has a default_budget; a budgets row overrides it)
 sub_budgets      id, category_id, name, total_amount, start_date, end_date (nullable),
-                 status (active|closed), counts_toward_monthly (default false), notes
+                 status (active|closed), notes
 rules            id, match_type (contains|starts_with|exact|regex), pattern, priority,
                  account_id (nullable), date_from, date_to (nullable),
                  category_id, sub_budget_id, merchant_name, set_excluded, set_kind,
@@ -72,6 +72,8 @@ The bank's own `Category` column is kept as `bank_category`. It's a hint, not tr
 
 The column-picker UI for new profiles (upload a sample, map columns from dropdowns) still gets built, for the next card you open.
 
+**The overlapping-export case is the whole point.** You'll export a running list from each bank, say the last 90 days, every week or two. Most rows in each export were already imported last time. The importer must add only the rows it hasn't seen and leave everything else alone, including any category or note you've set on the old rows. It never updates or deletes an existing transaction from an import. The unique fingerprint index on `transactions` enforces this at the database level, not just in code.
+
 Import flow:
 
 1. Upload file. Hash it. If the same file hash was imported before, say so and stop.
@@ -81,11 +83,13 @@ Import flow:
    where `n` is the occurrence index for identical rows on the same day. Your Apple Card export has twenty-two identical `BELBIM AS. ULASIM` rows at $1.35 across three days; this is what `n` is for. Chase checking has a running balance, which makes its fingerprints unambiguous. The Chase card has neither balance nor reference, so date, post date, amount, description and `n` are all it gets, and that's enough as long as exports are taken after transactions post.
 4. Split rows into three buckets:
    - **new**: fingerprint not seen
-   - **duplicate**: fingerprint seen, skip silently
+   - **duplicate**: fingerprint seen, skip silently. On a routine re-export this is most of the file
    - **flagged**: not an exact duplicate but there's an existing transaction in the same account within 3 days with the same amount and a different description. This catches pending → posted description changes. Show these side by side and let the user pick keep or skip.
 5. Show a preview page: counts, the flagged pairs, and the first 20 new rows with the category the rules engine would assign.
 6. Commit. Run rules on the new rows. Record the import.
 7. **Undo import**: deletes the transactions from that import (unless edited since, in which case warn).
+
+Tests that lock this in: import a 90-day export, then import a fresh 90-day export taken two weeks later. Only the two weeks of new rows land. Import the first file a second time: zero rows land. Import a shorter export that's a strict subset: zero rows land.
 
 ### 3.2 Rules engine
 
@@ -129,7 +133,7 @@ A sub-budget is a named pot inside a category with a total amount and its own li
 
 - A transaction belongs to at most one sub-budget, and it must be in that sub-budget's category. Assign by rule, by bulk edit, or one at a time.
 - The sub-budget page shows total, spent, remaining, and a cumulative spend line from start date to today with the total as a flat line. Closed sub-budgets keep their final numbers.
-- By default a sub-budget's transactions **do not** count against the category's monthly budget. The trip has its own budget; it shouldn't blow September's Travel envelope too. Flip `counts_toward_monthly` on per sub-budget if you want both. Either way the spend shows in total monthly spending and in the category's dashboards, marked as belonging to the sub-budget.
+- A sub-budget's transactions count against the category's monthly budget **and** the sub-budget. The trip's restaurants come out of September's Travel envelope, and they also draw down the trip pot. The category's monthly view marks which rows belong to a sub-budget so you can see both at once.
 - Sub-budgets don't roll over. They have a total, and they're done when they're closed.
 - Dashboard: all active sub-budgets as progress bars, sorted by percent spent.
 
@@ -196,7 +200,7 @@ Categories with groups. Transactions table with filters, inline category edit, e
 Rules CRUD, "create rule from this transaction", apply-to-existing, category locking, review queue page, rules run at import commit.
 
 **Phase 5: Budgets, rollover, sub-budgets** (1½ days)
-Default and per-month budgets, copy last month, rollover modes and cap, the "this month" home page with total budget vs spend and per-category bars. Sub-budgets: model, pages, assignment by rule and bulk edit, the counts-toward-monthly toggle. Rollover and sub-budget maths get table-driven tests.
+Default and per-month budgets, copy last month, rollover modes and cap, the "this month" home page with total budget vs spend and per-category bars. Sub-budgets: model, pages, assignment by rule and bulk edit. Rollover and sub-budget maths get table-driven tests.
 
 **Phase 6: Dashboards** (1½ days)
 The eight charts above. One SQL query module that returns month × category aggregates; every chart reads from it. Vendored Chart.js.
@@ -265,9 +269,11 @@ Then from any device on the LAN: `http://<pi-ip>:8000`. Install Tailscale on the
 - No "left to spend". Home page is total budget vs total spend.
 - Income and cash position are tracked elsewhere. Payroll and transfers are excluded from spend by default rules.
 - Bulk edit and sub-budgets are first-class.
+- Two logins, one each, with an audit trail.
+- Sub-budget spend counts against the monthly category budget as well as the sub-budget.
+- Chase checking is imported. Default rules hide payroll, mortgage, and transfers so Venmo and Zelle spend is still caught.
+- Imports are overlapping running exports. Only unseen rows are added. Existing rows are never touched by an import.
 
 ## 10. Still open
 
-1. Two logins (one each) with an audit trail, or one shared login? I'll build two unless told otherwise.
-2. Sub-budget spend is excluded from the monthly category budget by default. Say so if you'd rather it count against both.
-3. Chase checking is mostly payroll, mortgage, and transfers. Do you want it imported at all, or only the two cards? Importing it costs nothing but adds rows to exclude. I'd import it and let the default rules hide the noise, so Venmo and Zelle spending is still caught.
+Nothing blocking. Phase 0 can start.

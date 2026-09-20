@@ -32,8 +32,21 @@ var BT = (function () {
     };
     return new Chart(el, cfg);
   }
+  // Validated categorical palette: light step -> dark step (same hue, re-stepped for the dark surface).
+  var LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7', '#e34948'];
+  var DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
+  function isDark() {
+    var t = document.documentElement.dataset.theme;
+    return t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function seriesColour(hex) {
+    if (!hex) return css('--muted');
+    var i = LIGHT.indexOf(hex.toLowerCase());
+    return (i >= 0 && isDark()) ? DARK[i] : hex;
+  }
+  function palette() { return isDark() ? DARK : LIGHT; }
   return {
-    chart: chart, money: money, moneyFull: moneyFull, rgba: rgba,
+    chart: chart, seriesColour: seriesColour, palette: palette, money: money, moneyFull: moneyFull, rgba: rgba,
     accent: function (a) { return rgba(css('--accent') || '#0f766e', a); },
     muted: function (a) { return rgba(css('--muted') || '#6b7280', a); },
     danger: function (a) { return rgba(css('--danger') || '#b91c1c', a); },

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Dashboards{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Dashboards</h1>
+  <div class="month-nav">
+    <a href="/dashboards?month={{ prev_month }}{% if focus %}&category_id={{ focus.id }}{% endif %}">‹</a><strong>to {{ month | month_label }}</strong><a href="/dashboards?month={{ next_month }}{% if focus %}&category_id={{ focus.id }}{% endif %}">›</a>
+  </div>
+</header>
+
+<div class="tiles">
+  <div class="tile"><div class="label">{{ month[:4] }} to date · budget</div><div class="value">{{ ytd_budget | money }}</div></div>
+  <div class="tile"><div class="label">{{ month[:4] }} to date · spent</div><div class="value">{{ ytd_spent | money }}</div></div>
+  <div class="tile"><div class="label">{{ 'Over' if ytd_spent > ytd_budget else 'Under' }} budget</div><div class="value {{ 'neg' if ytd_spent > ytd_budget else 'pos' }}">{{ (ytd_spent - ytd_budget) | abs | money }}</div></div>
+  <div class="tile"><div class="label">Avg. per month</div><div class="value">{{ (ytd_spent // ytd_months if ytd_months else 0) | money }}</div></div>
+</div>
+
+<div class="chart-grid">
+  <div class="chart-card full">
+    <h3>Budget vs spending, last 12 months</h3>
+    <div class="chart-scroll"><div><canvas id="totals"></canvas></div></div>
+    <details><summary class="small">Table</summary><div class="table-wrap"><table><thead><tr><th>Month</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Diff</th></tr></thead><tbody>
+    {% for t in totals %}<tr><td>{{ t.month | month_label }}</td><td class="num">{{ t.budget | money }}</td><td class="num">{{ t.spent | money }}</td><td class="num {{ 'neg' if t.spent > t.budget else 'pos' }}">{{ (t.budget - t.spent) | money(sign=True) }}</td></tr>{% endfor %}
+    </tbody></table></div></details>
+  </div>
+
+  <div class="chart-card full">
+    <h3>Spending by category, last 12 months <label class="check small" style="margin:0"><input type="checkbox" id="stack-lines" onchange="toggleLines(this.checked)"> lines</label></h3>
+    <div class="chart-scroll"><div><canvas id="stacked"></canvas></div></div>
+    <details><summary class="small">Table</summary><div class="table-wrap"><table><thead><tr><th>Category</th>{% for l in labels %}<th class="num">{{ l[:3] }}</th>{% endfor %}</tr></thead><tbody>
+    {% for s in stacked %}<tr><td><span class="swatch" style="background:{{ s.colour }}"></span>{{ s.label }}</td>{% for v in s.data %}<td class="num">{{ (v * 100) | round | int | money }}</td>{% endfor %}</tr>{% endfor %}
+    </tbody></table></div></details>
+  </div>
+
+  <div class="chart-card">
+    <h3>
+      <form method="get" action="/dashboards" style="display:flex;gap:6px;align-items:center;width:100%">
+        <input type="hidden" name="month" value="{{ month }}">
+        <select name="category_id" onchange="this.form.submit()" style="min-height:36px">
+          {% for c in cats %}<option value="{{ c.id }}" {{ 'selected' if focus and focus.id == c.id }}>{{ c.name }}</option>{% endfor %}
+        </select>
+        <span class="muted small" style="white-space:nowrap">vs budget</span>
+      </form>
+    </h3>
+    <div class="chart-fixed"><canvas id="focus"></canvas></div>
+  </div>
+
+  <div class="chart-card">
+    <h3>Share this month</h3>
+    {% if share %}
+    <div class="chart-fixed" style="height:{{ 40 + share | length * 26 }}px"><canvas id="share"></canvas></div>
+    {% else %}<p class="empty">No spending in {{ month | month_label }}.</p>{% endif %}
+  </div>
+
+  <div class="chart-card">
+    <h3>Top merchants, {{ month | month_label }}</h3>
+    {% if merchants_month %}
+    <div class="chart-fixed" style="height:{{ 40 + merchants_month | length * 26 }}px"><canvas id="mm"></canvas></div>
+    {% else %}<p class="empty">Nothing yet.</p>{% endif %}
+  </div>
+
+  <div class="chart-card">
+    <h3>Top merchants, last 12 months</h3>
+    {% if merchants_year %}
+    <div class="chart-fixed" style="height:{{ 40 + merchants_year | length * 26 }}px"><canvas id="my"></canvas></div>
+    {% else %}<p class="empty">Nothing yet.</p>{% endif %}
+  </div>
+
+  {% if holders | length > 1 %}
+  <div class="chart-card full">
+    <h3>Spending by person <span class="muted small">where the card reports it</span></h3>
+    <div class="chart-scroll"><div><canvas id="holders"></canvas></div></div>
+  </div>
+  {% endif %}
+</div>
+<p class="muted small" style="margin-top:12px">Spending excludes transfers, income and anything marked excluded. Budget includes rollover carried in.</p>
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/js/charts.js"></script>
+<script>
+var D = {{ chart | safe }};
+var stackedChart;
+function hbar(id, rows, colourFn) {
+  BT.chart(id, {
+    type: 'bar',
+    data: { labels: rows.map(function (r) { return r.label.length > 22 ? r.label.slice(0, 21) + '…' : r.label; }),
+      datasets: [{ data: rows.map(function (r) { return r.value; }), backgroundColor: rows.map(colourFn), borderRadius: 4, borderSkipped: 'start', barThickness: 14 }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { var r = rows[c.dataIndex]; return BT.moneyFull(c.parsed.x) + (r.count ? ' · ' + r.count + ' txns' : ''); } } } },
+      scales: { x: { beginAtZero: true, ticks: { callback: BT.money }, grid: { display: true } }, y: { grid: { display: false } } } }
+  });
+}
+BT.chart('totals', {
+  type: 'bar',
+  data: { labels: D.labels, datasets: [
+    { label: 'Budget', data: D.totals.budget, backgroundColor: BT.muted(0.35), borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 22 },
+    { label: 'Spent', data: D.totals.spent, backgroundColor: BT.accent(), borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 22 }
+  ]},
+  options: { scales: { y: { beginAtZero: true, ticks: { callback: BT.money } }, x: { grid: { display: false } } } }
+});
+function buildStacked(lines) {
+  if (stackedChart) stackedChart.destroy();
+  var surface = getComputedStyle(document.documentElement).getPropertyValue('--surface').trim();
+  stackedChart = BT.chart('stacked', {
+    type: lines ? 'line' : 'bar',
+    data: { labels: D.labels, datasets: D.stacked.map(function (s) {
+      var c = BT.seriesColour(s.colour);
+      return lines
+        ? { label: s.label, data: s.data, borderColor: c, backgroundColor: c, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.2 }
+        : { label: s.label, data: s.data, backgroundColor: c, borderColor: surface, borderWidth: { top: 2 }, maxBarThickness: 28 };
+    }) },
+    options: { scales: { y: { beginAtZero: true, stacked: !lines, ticks: { callback: BT.money } }, x: { stacked: !lines, grid: { display: false } } } }
+  });
+}
+function toggleLines(on) { buildStacked(on); }
+buildStacked(false);
+if (D.focus) {
+  var fc = BT.seriesColour(D.focus.colour);
+  BT.chart('focus', {
+    type: 'bar',
+    data: { labels: D.labels, datasets: [
+      { type: 'line', label: 'Budget incl. carry', data: D.focus.available, borderColor: BT.muted(), borderWidth: 2, borderDash: [6, 4], pointRadius: 3, pointHoverRadius: 6, spanGaps: true },
+      { label: 'Spent', data: D.focus.spent, backgroundColor: fc, borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 22 }
+    ]},
+    options: { scales: { y: { beginAtZero: true, ticks: { callback: BT.money } }, x: { grid: { display: false } } } }
+  });
+}
+if (D.share.length) hbar('share', D.share, function (r) { return BT.seriesColour(r.colour); });
+if (D.merchantsMonth.length) hbar('mm', D.merchantsMonth, function () { return BT.accent(); });
+if (D.merchantsYear.length) hbar('my', D.merchantsYear, function () { return BT.accent(); });
+if (D.holders.length > 1) {
+  var pal = BT.palette();
+  BT.chart('holders', {
+    type: 'bar',
+    data: { labels: D.labels, datasets: D.holders.map(function (h, i) { return { label: h.label, data: h.data, backgroundColor: pal[i % pal.length], borderRadius: 4, borderSkipped: 'bottom', maxBarThickness: 22 }; }) },
+    options: { scales: { y: { beginAtZero: true, ticks: { callback: BT.money } }, x: { grid: { display: false } } } }
+  });
+}
+</script>
+{% endblock %}

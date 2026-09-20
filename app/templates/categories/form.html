@@ -9,7 +9,10 @@
     <label>Name <input type="text" name="name" value="{{ cat.name if cat else '' }}" required></label>
     <label>Group <input type="text" name="group_name" list="groups" value="{{ cat.group_name or '' if cat else '' }}" placeholder="Everyday"><datalist id="groups">{% for g in groups %}<option value="{{ g }}">{% endfor %}</datalist></label>
     <label>Monthly budget <input type="text" inputmode="decimal" name="default_budget" value="{{ '%.2f' % (cat.default_budget / 100) if cat else '' }}" placeholder="0.00"></label>
-    <label>Colour <input type="color" name="colour" value="{{ cat.colour if cat else '#0f766e' }}" style="padding:2px;height:44px"></label>
+    <label>Colour <input type="color" name="colour" id="colour" value="{{ cat.colour if cat else '#2a78d6' }}" style="padding:2px;height:44px">
+      <span style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">{% for c in ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948','#9ca3af'] %}<button type="button" class="swatch" style="background:{{ c }};width:22px;height:22px;border:1px solid var(--border);cursor:pointer" onclick="document.getElementById('colour').value='{{ c }}'" aria-label="{{ c }}"></button>{% endfor %}</span>
+      <small class="muted">Pick from the tested set so charts stay readable for everyone.</small>
+    </label>
     <label>Rollover
       <select name="rollover_mode">{% for v, l in modes %}<option value="{{ v }}" {{ 'selected' if cat and cat.rollover_mode == v }}>{{ l }}</option>{% endfor %}</select>
     </label>

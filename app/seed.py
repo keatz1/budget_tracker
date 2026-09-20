@@ -51,19 +51,20 @@ BUILTIN_PROFILES: list[dict] = [
 ]
 
 STARTER_CATEGORIES: list[tuple[str, str, str]] = [
-    # (group, name, colour)
-    ("Everyday", "Groceries", "#16a34a"),
-    ("Everyday", "Restaurants", "#f97316"),
-    ("Everyday", "Coffee", "#a16207"),
-    ("Everyday", "Transport", "#0ea5e9"),
-    ("Everyday", "Shopping", "#8b5cf6"),
-    ("Home", "Household", "#64748b"),
-    ("Home", "Pets", "#d946ef"),
-    ("Home", "Subscriptions", "#6366f1"),
-    ("Health", "Health", "#ef4444"),
-    ("Fun", "Travel", "#14b8a6"),
-    ("Fun", "Entertainment", "#eab308"),
-    ("Fun", "Gifts", "#ec4899"),
+    # (group, name, colour). Colours come from the validated categorical palette,
+    # assigned in fixed slot order; "Other" is neutral.
+    ("Everyday", "Groceries", "#008300"),
+    ("Everyday", "Restaurants", "#eb6834"),
+    ("Everyday", "Coffee", "#eda100"),
+    ("Everyday", "Transport", "#2a78d6"),
+    ("Everyday", "Shopping", "#4a3aa7"),
+    ("Home", "Household", "#1baf7a"),
+    ("Home", "Pets", "#e87ba4"),
+    ("Home", "Subscriptions", "#e34948"),
+    ("Health", "Health", "#e34948"),
+    ("Fun", "Travel", "#1baf7a"),
+    ("Fun", "Entertainment", "#eda100"),
+    ("Fun", "Gifts", "#e87ba4"),
     ("Other", "Other", "#9ca3af"),
 ]
 

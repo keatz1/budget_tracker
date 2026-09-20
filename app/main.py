@@ -12,6 +12,7 @@ from app.routers import (
     auth,
     budgets,
     categories,
+    dashboards,
     home,
     imports,
     review,
@@ -63,3 +64,4 @@ app.include_router(rules.router)
 app.include_router(home.router)
 app.include_router(budgets.router)
 app.include_router(sub_budgets.router)
+app.include_router(dashboards.router)

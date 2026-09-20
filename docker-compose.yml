@@ -1,0 +1,29 @@
+services:
+  budget:
+    build: .
+    image: budget-tracker:local
+    container_name: budget
+    restart: unless-stopped
+    ports:
+      - "${BT_PORT:-8000}:8000"
+    environment:
+      - BT_SECRET_KEY=${BT_SECRET_KEY:?set BT_SECRET_KEY in .env}
+    volumes:
+      - ./data:/data
+
+  # Nightly SQLite backup, keeps 30 days. Point ./data/backups at a USB stick
+  # or a synced folder on the Pi if you want copies off the SD card.
+  backup:
+    image: alpine:3.20
+    container_name: budget-backup
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    command: >
+      sh -c 'apk add --no-cache sqlite >/dev/null &&
+             while true; do
+               mkdir -p /data/backups &&
+               sqlite3 /data/budget.db ".backup /data/backups/budget-$(date +%Y%m%d).db" &&
+               find /data/backups -name "budget-*.db" -mtime +30 -delete;
+               sleep 86400;
+             done'

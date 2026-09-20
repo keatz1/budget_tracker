@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}More{% endblock %}
+{% block content %}
+<header class="page-head"><h1>More</h1></header>
+<ul class="menu">
+  <li><a href="/import">Import CSV</a></li>
+  <li><a href="/budgets">Budgets</a></li>
+  <li><a href="/sub-budgets">Sub-budgets</a></li>
+  <li><a href="/rules">Rules</a></li>
+  <li><a href="/accounts">Accounts</a></li>
+  <li><a href="/import/history">Import history</a></li>
+  <li><a href="/settings">Settings</a></li>
+</ul>
+<p class="muted small">Signed in as {{ user.display_name }}.</p>
+{% endblock %}

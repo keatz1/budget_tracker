@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if account else 'New' }} account{% endblock %}
+{% block content %}
+<header class="page-head"><h1>{{ 'Edit account' if account else 'New account' }}</h1></header>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" class="form" hx-boost="false">
+  <label>Name <input type="text" name="name" value="{{ account.name if account else '' }}" required placeholder="Chase Sapphire"></label>
+  <label>Institution <input type="text" name="institution" value="{{ account.institution if account else '' }}" placeholder="Chase"></label>
+  <label>Kind
+    <select name="kind">
+      {% for k in ['credit', 'checking', 'savings'] %}
+      <option value="{{ k }}" {{ 'selected' if account and account.kind == k }}>{{ k }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>CSV profile
+    <select name="csv_profile_id">
+      <option value="">None yet</option>
+      {% for p in profiles %}
+      <option value="{{ p.id }}" {{ 'selected' if account and account.csv_profile_id == p.id }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <small class="muted">Which bank's CSV layout this account exports. <a href="/import/profiles">Manage profiles</a>.</small>
+  </label>
+  {% if account %}
+  <label class="check"><input type="checkbox" name="is_archived" {{ 'checked' if account.is_archived }}> Archived</label>
+  {% endif %}
+  <div class="actions">
+    <button class="primary" type="submit">Save</button>
+    <a class="button" href="/accounts">Cancel</a>
+    {% if account and not has_txns %}
+    <button class="danger right" type="submit" formaction="/accounts/{{ account.id }}/delete" onclick="return confirm('Delete this account?')">Delete</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Set your password{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <h1>Hi {{ invitee.display_name }}</h1>
+  <p class="muted">Set a password for {{ invitee.email }}.</p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" hx-boost="false">
+    <label>Password <input type="password" name="password" required minlength="8" autocomplete="new-password" autofocus></label>
+    <label>Again <input type="password" name="password2" required minlength="8" autocomplete="new-password"></label>
+    <button class="primary wide" type="submit">Save and sign in</button>
+  </form>
+</div>
+{% endblock %}

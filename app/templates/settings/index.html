@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<header class="page-head"><h1>Settings</h1></header>
+
+<section class="panel">
+  <h2>Users</h2>
+  <ul class="cards">
+  {% for u in users %}
+    <li class="card">
+      <div class="card-main">
+        <strong>{{ u.display_name }}</strong>
+        <span class="muted">{{ u.email }}{% if u.is_admin %} · admin{% endif %}{% if not u.password_hash %} · invited, not yet signed in{% endif %}</span>
+      </div>
+      {% if not u.password_hash %}
+      <div class="card-side"><code class="small">{{ base_url }}/invite/{{ u.invite_token }}</code></div>
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+  {% if user.is_admin %}
+  <details>
+    <summary>Invite someone</summary>
+    <form method="post" action="/settings/users" class="form inline" hx-boost="false">
+      <label>Name <input type="text" name="display_name" required></label>
+      <label>Email <input type="email" name="email" required></label>
+      <button class="primary" type="submit">Create invite link</button>
+    </form>
+  </details>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Your password</h2>
+  <form method="post" action="/settings/password" class="form inline" hx-boost="false">
+    <label>Current <input type="password" name="current" required autocomplete="current-password"></label>
+    <label>New <input type="password" name="new" required minlength="8" autocomplete="new-password"></label>
+    <button class="primary" type="submit">Change</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Data</h2>
+  <div class="actions">
+    <a class="button" href="/settings/export.csv" hx-boost="false">Export all transactions (CSV)</a>
+    <form method="post" action="/settings/backup" hx-boost="false"><button type="submit">Back up database now</button></form>
+  </div>
+  {% if backups %}
+  <p class="muted small">Backups: {{ backups | join(', ') }}</p>
+  {% endif %}
+</section>
+
+<section class="panel">
+  <h2>Appearance</h2>
+  <button type="button" onclick="toggleTheme()">Toggle light / dark</button>
+</section>
+
+<form method="post" action="/logout" hx-boost="false"><button class="danger" type="submit">Sign out</button></form>
+{% endblock %}

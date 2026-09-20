@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>{% block title %}Budget{% endblock %} · Budget</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<link rel="stylesheet" href="/static/css/app.css">
+<script>
+(function(){try{var t=localStorage.getItem('theme');if(t){document.documentElement.dataset.theme=t;}}catch(e){}})();
+</script>
+<script src="/static/vendor/htmx.min.js" defer></script>
+{% block head %}{% endblock %}
+</head>
+<body hx-boost="true" hx-target="body" hx-swap="innerHTML show:window:top">
+{% set nav = [
+  ('/', 'This month', 'home'),
+  ('/transactions', 'Transactions', 'list'),
+  ('/review', 'Review', 'inbox'),
+  ('/dashboards', 'Dashboards', 'chart'),
+  ('/more', 'More', 'menu'),
+] %}
+{% set side = [
+  ('/', 'This month'),
+  ('/transactions', 'Transactions'),
+  ('/review', 'Review queue'),
+  ('/import', 'Import'),
+  ('/budgets', 'Budgets'),
+  ('/sub-budgets', 'Sub-budgets'),
+  ('/rules', 'Rules'),
+  ('/dashboards', 'Dashboards'),
+  ('/accounts', 'Accounts'),
+  ('/settings', 'Settings'),
+] %}
+{% set path = request.url.path %}
+{% if user %}
+<aside class="sidebar">
+  <a class="brand" href="/">Budget</a>
+  <nav>
+  {% for href, label in side %}
+    <a href="{{ href }}" class="{{ 'active' if (path == href or (href != '/' and path.startswith(href))) }}">{{ label }}</a>
+  {% endfor %}
+  </nav>
+  <div class="sidebar-foot">
+    <span class="muted">{{ user.display_name }}</span>
+    <button class="link" type="button" onclick="toggleTheme()">Theme</button>
+  </div>
+</aside>
+{% endif %}
+<main class="{{ 'with-nav' if user else 'bare' }}">
+  {% if flash %}<div class="flash" id="flash">{{ flash }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+{% if user %}
+<nav class="tabbar">
+  {% for href, label, icon in nav %}
+  <a href="{{ href }}" class="{{ 'active' if (path == href or (href != '/' and path.startswith(href))) }}">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><use href="/static/icons.svg#{{ icon }}"/></svg>
+    <span>{{ label }}</span>
+  </a>
+  {% endfor %}
+</nav>
+{% endif %}
+<script src="/static/js/app.js" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

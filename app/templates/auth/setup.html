@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}First run{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <h1>Welcome</h1>
+  <p class="muted">No users yet. Create the first account. It gets admin rights and can invite one more person.</p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/setup" hx-boost="false">
+    <label>Your name <input type="text" name="display_name" required autofocus></label>
+    <label>Email <input type="email" name="email" required autocomplete="username"></label>
+    <label>Password <input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+    <button class="primary wide" type="submit">Create account</button>
+  </form>
+</div>
+{% endblock %}

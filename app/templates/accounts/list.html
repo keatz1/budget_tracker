@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Accounts</h1>
+  <a class="button primary" href="/accounts/new">Add account</a>
+</header>
+{% if not accounts %}
+<p class="empty">No accounts yet. Add one per bank card or account you'll import from.</p>
+{% endif %}
+<ul class="cards">
+{% for a in accounts %}
+  <li class="card {{ 'archived' if a.is_archived }}">
+    <div class="card-main">
+      <strong>{{ a.name }}</strong>
+      <span class="muted">{{ a.institution or '' }} · {{ a.kind }}{% if a.csv_profile %} · {{ a.csv_profile.name }}{% endif %}</span>
+    </div>
+    <div class="card-side">
+      <span class="muted">{{ counts.get(a.id, 0) }} txns</span>
+      <a class="button small" href="/accounts/{{ a.id }}">Edit</a>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

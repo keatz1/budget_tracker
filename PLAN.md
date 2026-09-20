@@ -13,7 +13,7 @@ A self-hosted budget tracker for two people. Runs on a laptop today, on a Raspbe
 | Auth | Session cookies, argon2 password hashes | Two users, no OAuth needed |
 | Packaging | Docker image (multi-arch: amd64 + arm64) + docker compose | Same image on the laptop and the Pi |
 | Remote access | Tailscale (recommended) or WireGuard | No port forwarding, no exposing the Pi to the internet |
-| Money | Integer pence, GBP default | No float rounding |
+| Money | Integer cents, USD | No float rounding. Foreign spend is already converted by the card issuer |
 | Tests | pytest, coverage on the import and rollover logic | These two are where bugs hurt |
 | CI | GitHub Actions: ruff, mypy, pytest, docker build | Catch breakage before it reaches the Pi |
 
@@ -23,7 +23,7 @@ Why not Postgres: it's another service to run and back up. SQLite handles this l
 
 ## 2. Data model
 
-All money columns are integers in pence. Expenses are negative, income positive.
+All money columns are integers in cents. Expenses are negative, income positive, whatever sign the bank used.
 
 ```
 users            id, email, display_name, password_hash, is_admin, created_at
@@ -33,16 +33,22 @@ csv_profiles     id, name, delimiter, has_header, skip_rows, date_format,
                  col_balance, col_reference, negate_amounts
 imports          id, account_id, user_id, filename, file_sha256, imported_at,
                  rows_total, rows_new, rows_duplicate, rows_flagged, undone_at
-transactions     id, account_id, import_id, date, description_raw, description_clean,
+transactions     id, account_id, import_id, date, post_date, description_raw, description_clean,
                  merchant_name, amount, kind (expense|income|transfer),
-                 category_id, is_excluded, notes, fingerprint (unique per account),
-                 source (import|manual|split), parent_id, created_by, created_at, updated_at
+                 category_id, category_locked, sub_budget_id, is_excluded, notes,
+                 bank_category, bank_type, card_holder,
+                 fingerprint (unique per account), source (import|manual|split), parent_id,
+                 created_by, created_at, updated_at
 categories       id, name, group_name, kind (expense|income), colour, sort_order,
                  rollover_mode (none|carry_all|carry_positive_only), rollover_cap, is_archived
 budgets          id, category_id, month (YYYY-MM), amount        -- one row per category per month
                  (a category also has a default_budget; a budgets row overrides it)
+sub_budgets      id, category_id, name, total_amount, start_date, end_date (nullable),
+                 status (active|closed), counts_toward_monthly (default false), notes
 rules            id, match_type (contains|starts_with|exact|regex), pattern, priority,
-                 category_id, merchant_name, set_excluded, set_kind, hit_count, last_hit_at
+                 account_id (nullable), date_from, date_to (nullable),
+                 category_id, sub_budget_id, merchant_name, set_excluded, set_kind,
+                 hit_count, last_hit_at
 audit_log        id, user_id, at, entity, entity_id, action, before_json, after_json
 ```
 
@@ -50,15 +56,29 @@ audit_log        id, user_id, at, entity, entity_id, action, before_json, after_
 
 ### 3.1 CSV import and dedupe
 
-Every bank exports a different CSV. The app keeps a `csv_profile` per account that says which column is what. Ship profiles for the common UK banks (Monzo, Starling, Barclays, HSBC, Lloyds, Nationwide, NatWest, Santander, Amex) and let the user build one in the UI by uploading a sample and picking columns from dropdowns.
+Every bank exports a different CSV. The app keeps a `csv_profile` per account that says which column is what. Three profiles ship on day one, built from your real exports:
+
+| Profile | Columns | Sign | Quirks |
+|---|---|---|---|
+| Chase credit card | Transaction Date, Post Date, Description, Category, Type, Amount, Memo | negative = spend | No balance, no reference. `Type` is Sale, Payment, or Return. Payment → transfer |
+| Chase checking | Details, Posting Date, Description, Amount, Type, Balance, Check or Slip # | negative = debit | Header has 7 columns, every row has 8 (trailing comma). Parser must tolerate. `Type` values like ACH_DEBIT, ACCT_XFER, LOAN_PMT, QUICKPAY_CREDIT feed the transfer rule. `Balance` goes into the fingerprint |
+| Apple Card | Transaction Date, Clearing Date, Description, Merchant, Category, Type, Amount (USD), Purchased By | positive = purchase | `negate_amounts` on. `Merchant` is already clean, use it. `Purchased By` → `card_holder`. `Type` Payment → transfer |
+
+Dates are `M/D/YY` (Apple) and `MM/DD/YYYY` (Chase). The profile stores the format.
+
+The bank's own `Category` column is kept as `bank_category`. It's a hint, not truth: when no rule matches, the review queue shows it as the suggested category and one click accepts. Over time your rules replace it.
+
+`Purchased By` on the Apple Card means the dashboards can split spend by person for free. Chase doesn't give this, so it's a filter where present, not a core feature.
+
+The column-picker UI for new profiles (upload a sample, map columns from dropdowns) still gets built, for the next card you open.
 
 Import flow:
 
 1. Upload file. Hash it. If the same file hash was imported before, say so and stop.
 2. Parse with the account's profile. Normalise: trim, collapse whitespace, upper-case, strip card numbers and reference noise from the description.
 3. Compute a fingerprint per row:
-   `sha256(account_id | date | amount | normalised_description | balance_after if present | n)`
-   where `n` is the occurrence index for identical rows on the same day (two coffees, same price, same shop).
+   `sha256(account_id | transaction_date | post_date | amount | normalised_description | balance_after if present | n)`
+   where `n` is the occurrence index for identical rows on the same day. Your Apple Card export has twenty-two identical `BELBIM AS. ULASIM` rows at $1.35 across three days; this is what `n` is for. Chase checking has a running balance, which makes its fingerprints unambiguous. The Chase card has neither balance nor reference, so date, post date, amount, description and `n` are all it gets, and that's enough as long as exports are taken after transactions post.
 4. Split rows into three buckets:
    - **new**: fingerprint not seen
    - **duplicate**: fingerprint seen, skip silently
@@ -69,7 +89,13 @@ Import flow:
 
 ### 3.2 Rules engine
 
-Rules are ordered by priority. First match wins. A rule can set category, a clean merchant name, mark as excluded, or mark as transfer.
+Rules are ordered by priority. First match wins. A rule can set category, sub-budget, a clean merchant name, mark as excluded, or mark as transfer. A rule can be scoped to one account and to a date range, which is how "every `TURTUR` merchant on the Apple Card between Sep 1 and Sep 14 goes to the Istanbul trip" becomes one rule instead of forty edits.
+
+Built-in rules that ship enabled:
+- Chase card `Type = Payment` → transfer
+- Apple Card `Type = Payment` → transfer
+- Chase checking `Type in (ACCT_XFER, LOAN_PMT)` and descriptions matching `Payment to Chase card`, `APPLECARD GSBANK PAYMENT`, `SCHWAB BANK TRANSFER` → transfer
+- Chase checking `Type = ACH_CREDIT` with `PAYROLL` in the description → income, excluded from spend
 
 - Rules are created from the transaction page: "always put this in Groceries". The app pre-fills the pattern by stripping dates and reference numbers from the description.
 - "Apply to existing" checkbox re-runs the rule over past uncategorised transactions.
@@ -87,34 +113,46 @@ carry(M)     = clamp(available(M-1) - spent(M-1))
 
 `clamp` depends on the category's mode:
 
-- `none`: carry is always 0
-- `carry_all`: overspend last month reduces this month
+- `carry_all` (default): overspend last month reduces this month
 - `carry_positive_only`: unspent carries forward, overspend is forgiven
+- `none`: carry is always 0
 
 Optional `rollover_cap` stops a category building an unbounded pot. Rollover starts from the first month the category has a budget. Computed on the fly, month by month from the anchor; cache in a `month_summary` table only if it gets slow, which it won't for a few years of data.
 
 ### 3.4 Transfers
 
-Moving money between your own accounts isn't spending. Rules can mark a transaction as `transfer`, and transfers are excluded from every spend figure. Later: auto-detect matching pairs (same amount, opposite sign, within 2 days, different accounts) and offer to link them.
+Moving money between your own accounts isn't spending. Rules can mark a transaction as `transfer`, and transfers are excluded from every spend figure. Your Sep 15 `APPLECARD GSBANK PAYMENT -5240.41` on Chase checking and the `ACH DEPOSIT ... -5240.41` on the Apple Card are the same event and both must vanish from spend. Later: auto-detect matching pairs (same amount, opposite sign, within 3 days, different accounts) and offer to link them.
+
+### 3.5 Sub-budgets
+
+A sub-budget is a named pot inside a category with a total amount and its own life, not a month. "Istanbul trip, Travel, $4,000, Sep 1 to Sep 14." "Dog training, Pets, $3,900, open-ended." "Kitchen, Home, $15,000, until done."
+
+- A transaction belongs to at most one sub-budget, and it must be in that sub-budget's category. Assign by rule, by bulk edit, or one at a time.
+- The sub-budget page shows total, spent, remaining, and a cumulative spend line from start date to today with the total as a flat line. Closed sub-budgets keep their final numbers.
+- By default a sub-budget's transactions **do not** count against the category's monthly budget. The trip has its own budget; it shouldn't blow September's Travel envelope too. Flip `counts_toward_monthly` on per sub-budget if you want both. Either way the spend shows in total monthly spending and in the category's dashboards, marked as belonging to the sub-budget.
+- Sub-budgets don't roll over. They have a total, and they're done when they're closed.
+- Dashboard: all active sub-budgets as progress bars, sorted by percent spent.
 
 ## 4. Screens
 
 1. **Login**
-2. **This month** (home): the key number ("left to spend" = income this month − budgets not yet spent − unbudgeted spend), then a bar per category: budgeted + carry, spent, remaining. Red if over. Click through to transactions.
+2. **This month** (home): total budgeted vs total spent for the month, one big pair of numbers and a bar. Below it, a bar per category: budgeted + carry, spent, remaining. Red if over. Active sub-budgets below that. Click through to transactions. No "left to spend" and no income maths: this app tracks the spending budget, not cash.
 3. **Transactions**: filterable table (account, month, category, uncategorised, excluded, search). Inline category dropdown. Add manual transaction (income or expense) button.
    **Bulk edit** is a first-class requirement: checkbox per row, select all in current filter, then one action bar for set category, exclude/include, mark as transfer, add tag, delete, or create a rule from the selection. Filter to "Uncategorised, contains TESCO", select all, set Groceries, tick "make this a rule". Every bulk change writes one audit row per transaction and offers a single undo.
 4. **Review queue**: uncategorised and flagged transactions since last visit. This is the page you open after an import.
 5. **Import**: pick account, upload, preview, commit. Import history with undo.
 6. **Categories & budgets**: grid of categories by group with default budget, this month's override, rollover mode. "Copy last month's budgets" button.
+6a. **Sub-budgets**: list of active and closed pots with progress. Create, edit total, close. Detail page with the cumulative line and its transactions.
 7. **Rules**: list, edit, reorder, hit counts, test a pattern against existing transactions.
 8. **Accounts**: add, archive, pick or build a CSV profile.
 9. **Dashboards**:
-   - Total spend, month over month, last 12 months (bar), with income line
+   - Total budget vs total spend, month over month, last 12 months (paired bars)
    - Spend by category, month over month (stacked bar, toggle to lines)
-   - One category over time with its budget line
+   - One category over time with its budget line and carry
    - Category share this month (donut)
    - Top merchants this month and last 12 months
-   - Net cashflow and savings rate per month
+   - Sub-budgets: all active pots as progress bars; one pot as a cumulative line
+   - Spend by person, where the card reports it (Apple Card `Purchased By`)
    - Year to date vs budget
 10. **Settings**: users (invite, reset password), currency, backup now, export all as CSV.
 
@@ -123,20 +161,20 @@ Every page works on a phone. Both of you will use it from the sofa.
 ## 5. Features you didn't list but will want
 
 - **Review queue after import** (above). Without it, uncategorised transactions pile up silently.
-- **Transfers** (above). Without it, paying off the credit card looks like a £900 expense.
+- **Transfers** (above). Without it, the $5,240 Apple Card payment looks like the month's biggest expense.
 - **Import preview and undo.** The first few imports will go wrong while the CSV profile is being tuned.
 - **Split transactions.** One Amazon order, two categories.
 - **Category locking.** A manual categorisation must survive rule re-runs.
-- **Multiple accounts.** Joint current account, two personal accounts, a credit card. Each has its own CSV format.
+- **Multiple accounts.** Chase checking, Chase card, Apple Card today. Each has its own CSV format.
 - **Notes and tags** on a transaction. "Birthday present for Mum."
 - **Audit log.** Who changed what. Useful in a shared household when a transaction moves.
 - **Nightly backup.** A cron in the container copies the SQLite file to a `backups/` volume and keeps 30 days. You can point that at a USB stick or a synced folder. The dashboards are worthless if the Pi's SD card dies with the only copy.
 - **CSV export** of everything. Your data, your way out.
 - **Recurring detection** (later). Flag transactions that show up monthly with the same merchant and near-same amount, so bills are known before they arrive.
-- **Annual budgets** (later). Car insurance is once a year. Rollover with a cap covers most of this; a per-year budget type covers the rest.
+- **Annual budgets** (later). Car insurance is once a year. A sub-budget with a 12-month window covers this well enough that it may never need its own feature.
 - **Dark mode.** Cheap with CSS variables; do it from the start.
 
-Out of scope on purpose: bank API connections (Open Banking needs a registered provider), savings goals, investment tracking, multi-currency, push notifications.
+Out of scope on purpose: bank API connections (Plaid costs money and needs a registered app), income and cash-position tracking (you do that elsewhere), savings goals, investment tracking, multi-currency, push notifications.
 
 ## 6. Build phases
 
@@ -149,7 +187,7 @@ Repo layout, `pyproject.toml`, FastAPI app with a health route, SQLite + Alembic
 Login, sessions, first-run admin setup, invite second user. Accounts CRUD. Base layout, nav, dark mode.
 
 **Phase 2: CSV import** (2 days)
-CSV profiles with built-ins and the column-picker UI. Parser, normaliser, fingerprinting, three-bucket dedupe, preview, commit, undo. This phase gets the most tests: fixture CSVs from each supported bank, re-import produces zero new rows, overlapping exports dedupe correctly, pending → posted gets flagged.
+The three profiles above, plus the column-picker UI. Parser, normaliser, fingerprinting, three-bucket dedupe, preview, commit, undo. This phase gets the most tests, using anonymised slices of your three real exports as fixtures: re-import produces zero new rows, overlapping exports dedupe correctly, the 22 identical Belbim rows all survive, the Chase checking trailing comma parses, pending → posted gets flagged.
 
 **Phase 3: Transactions and categories** (1½ days)
 Categories with groups. Transactions table with filters, inline category edit, exclude, manual add (income and expense), delete, transfers, notes. Bulk edit with select-all-in-filter, the action bar, and undo.
@@ -157,11 +195,11 @@ Categories with groups. Transactions table with filters, inline category edit, e
 **Phase 4: Rules** (1 day)
 Rules CRUD, "create rule from this transaction", apply-to-existing, category locking, review queue page, rules run at import commit.
 
-**Phase 5: Budgets and rollover** (1 day)
-Default and per-month budgets, copy last month, rollover modes and cap, the "this month" home page with left-to-spend and per-category bars. Rollover logic gets table-driven tests.
+**Phase 5: Budgets, rollover, sub-budgets** (1½ days)
+Default and per-month budgets, copy last month, rollover modes and cap, the "this month" home page with total budget vs spend and per-category bars. Sub-budgets: model, pages, assignment by rule and bulk edit, the counts-toward-monthly toggle. Rollover and sub-budget maths get table-driven tests.
 
 **Phase 6: Dashboards** (1½ days)
-The seven charts above. One SQL query module that returns month × category aggregates; every chart reads from it. Vendored Chart.js.
+The eight charts above. One SQL query module that returns month × category aggregates; every chart reads from it. Vendored Chart.js.
 
 **Phase 7: Pi deployment** (½ day)
 Multi-arch image pushed to GitHub Container Registry. `docker compose up -d` on the Pi with `restart: unless-stopped`. Volume for the DB and backups. Nightly backup cron. Tailscale setup notes. Optional Caddy for HTTPS on a `.local` name.
@@ -169,7 +207,7 @@ Multi-arch image pushed to GitHub Container Registry. `docker compose up -d` on 
 **Phase 8: Polish** (ongoing)
 Splits, recurring detection, transfer pairing, annual budgets, CSV export, search.
 
-Total to a daily-use app: about 9 working days through Phase 7.
+Total to a daily-use app: about 10 working days through Phase 7.
 
 ## 7. Repo layout
 
@@ -183,7 +221,7 @@ budget_tracker/
     auth/                login, sessions, password hashing
     importer/            profiles, parser, normaliser, fingerprint, dedupe
     rules/               matcher, apply, suggest-pattern
-    budgets/             rollover maths, month summaries
+    budgets/             rollover maths, sub-budget maths, month summaries
     reports/             aggregate queries feeding dashboards
     routers/             one file per screen
     templates/           Jinja2, one folder per screen + partials for HTMX
@@ -219,10 +257,17 @@ docker compose up -d
 
 Then from any device on the LAN: `http://<pi-ip>:8000`. Install Tailscale on the Pi and your phones and the same URL works from anywhere, with no port forwarding.
 
-## 9. Questions to settle before Phase 2
+## 9. Settled
 
-1. Which banks and cards will you import from? I'll build and test those profiles first.
-2. Currency is GBP. Correct?
-3. Rollover default: forgive overspend (`carry_positive_only`) or carry it (`carry_all`)? I'd default to `carry_all` and let you flip it per category.
-4. Do you and your wife want separate logins with an audit trail, or one shared login? Separate is one extra table and worth it.
-5. Should "left to spend" count income actually received this month, or a fixed expected monthly income you set once? PocketGuard uses expected. I'd offer both and default to expected.
+- Accounts: Chase checking (2630), Chase credit card (8393), Apple Card. Profiles built from the Sep 20 2026 exports.
+- Currency: USD.
+- Rollover default: `carry_all`.
+- No "left to spend". Home page is total budget vs total spend.
+- Income and cash position are tracked elsewhere. Payroll and transfers are excluded from spend by default rules.
+- Bulk edit and sub-budgets are first-class.
+
+## 10. Still open
+
+1. Two logins (one each) with an audit trail, or one shared login? I'll build two unless told otherwise.
+2. Sub-budget spend is excluded from the monthly category budget by default. Say so if you'd rather it count against both.
+3. Chase checking is mostly payroll, mortgage, and transfers. Do you want it imported at all, or only the two cards? Importing it costs nothing but adds rows to exclude. I'd import it and let the default rules hide the noise, so Venmo and Zelle spending is still caught.

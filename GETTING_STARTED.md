@@ -56,6 +56,19 @@ While your computer is on and the app is running, your phone can use it too, as 
 
 When it moves to the Raspberry Pi, only the address changes.
 
+## Moving to the Raspberry Pi later
+
+Start using the app now. When the Pi is ready, you carry your data across. It's one folder.
+
+1. On your computer, stop the app (the stop file).
+2. Copy the whole **data** folder and the **.env** file from the app folder onto a USB stick. (`.env` is hidden on Mac; press Cmd+Shift+. in Finder to show hidden files.) The .env file keeps your logins working; the data folder is every transaction, category, rule and budget.
+3. On the Pi, follow the "Run it on a Raspberry Pi" steps in README.md, up to but not including `docker compose up`. That puts the app folder on the Pi.
+4. Copy **data** and **.env** from the USB stick into that folder, replacing what's there.
+5. Run `docker compose up -d --build`. The app starts with all your history.
+6. On your phone, change the saved address from your computer's to the Pi's. Everything else is the same.
+
+Two rules from then on: use the Pi, not the computer, so there's only one copy. And keep taking backups: the Pi copies the database into `data/backups` every night, and that folder should live on a USB stick or a synced folder, not only the Pi's SD card.
+
 ## Stopping and starting
 
 - To stop: double-click **stop-mac.command** or **stop-windows.bat**. Your data stays.

@@ -2,6 +2,8 @@
 
 A self-hosted spending budget for two people. Import bank CSVs, sort transactions into categories, set monthly budgets that roll over, track one-off pots like a trip, and see where the money went. Runs on a laptop today and a Raspberry Pi later. Built for the phone first.
 
+**Not a developer?** Read [GETTING_STARTED.md](GETTING_STARTED.md). It walks through installing Docker Desktop and double-clicking a start file.
+
 The design and decisions are in [PLAN.md](PLAN.md).
 
 ## Run it on your laptop

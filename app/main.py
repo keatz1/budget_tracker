@@ -7,7 +7,18 @@ from fastapi.staticfiles import StaticFiles
 
 from app.db import SessionLocal, run_migrations
 from app.deps import NeedsLogin
-from app.routers import accounts, auth, categories, imports, review, rules, transactions
+from app.routers import (
+    accounts,
+    auth,
+    budgets,
+    categories,
+    home,
+    imports,
+    review,
+    rules,
+    sub_budgets,
+    transactions,
+)
 from app.routers import settings as settings_router
 from app.seed import seed
 
@@ -49,3 +60,6 @@ app.include_router(transactions.router)
 app.include_router(categories.router)
 app.include_router(review.router)
 app.include_router(rules.router)
+app.include_router(home.router)
+app.include_router(budgets.router)
+app.include_router(sub_budgets.router)

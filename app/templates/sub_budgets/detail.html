@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ sb.name }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>{{ sb.name }}</h1>
+  <div class="actions">
+    <form method="post" action="/sub-budgets/{{ sb.id }}/toggle" hx-boost="false"><button class="small" type="submit">{{ 'Close' if sb.status == 'active' else 'Reopen' }}</button></form>
+    <a class="button small" href="/sub-budgets/{{ sb.id }}/edit">Edit</a>
+  </div>
+</header>
+<p class="muted small">{{ sb.category.name }} · {{ sb.start_date.strftime('%b %d %Y') }}{% if sb.end_date %} to {{ sb.end_date.strftime('%b %d %Y') }}{% endif %} · {{ sb.status }}{% if sb.notes %} · {{ sb.notes }}{% endif %}</p>
+<div class="tiles">
+  <div class="tile"><div class="label">Total</div><div class="value">{{ sb.total_amount | money }}</div></div>
+  <div class="tile"><div class="label">Spent</div><div class="value">{{ st.spent | money }}</div></div>
+  <div class="tile"><div class="label">{{ 'Over' if st.over else 'Left' }}</div><div class="value {{ 'neg' if st.over else 'pos' }}">{{ st.remaining | abs | money }}</div></div>
+  <div class="tile"><div class="label">Transactions</div><div class="value">{{ st.count }}</div></div>
+</div>
+<div class="panel">
+  <div class="bar {{ 'over' if st.over }}" style="height:14px"><span style="width:{{ st.pct }}%"></span></div>
+</div>
+<div class="chart-card" style="margin-bottom:16px">
+  <h3>Spend over time</h3>
+  <div class="chart-fixed"><canvas id="cum"></canvas></div>
+</div>
+<section>
+  <h2>Transactions <a class="button small" href="/transactions?month=all&show=all&sub_budget_id={{ sb.id }}">Open in list</a></h2>
+  {% if not txns %}<p class="empty">Nothing assigned yet. Select transactions on the <a href="/transactions?month=all&category_id={{ sb.category_id }}">transactions page</a> and pick this sub-budget in the bulk bar, or <a href="/rules/new">make a rule</a> that assigns it.</p>{% endif %}
+  <ul class="txn-list">
+  {% for t in txns %}{% include "partials/txn_row.html" %}{% endfor %}
+  </ul>
+</section>
+{% set sheet_extra = false %}
+{% endblock %}
+{% block scripts %}
+<script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/js/charts.js"></script>
+<script>
+(function(){
+  var d = {{ chart | safe }};
+  var labels = d.points.map(function(p){ return p[0]; });
+  if (d.end && labels[labels.length-1] < d.end) { labels.push(d.end); d.points.push([d.end, null]); }
+  BT.chart('cum', {
+    type: 'line',
+    data: { labels: labels, datasets: [
+      { label: 'Spent', data: d.points.map(function(p){ return p[1] === null ? null : p[1] / 100; }), borderColor: BT.accent(), backgroundColor: BT.accent(0.15), fill: true, stepped: true, pointRadius: 2, spanGaps: false },
+      { label: 'Total', data: labels.map(function(){ return d.total / 100; }), borderColor: BT.muted(), borderDash: [6,4], pointRadius: 0 }
+    ]},
+    options: { scales: { y: { beginAtZero: true, ticks: { callback: BT.money } } } }
+  });
+})();
+</script>
+{% endblock %}

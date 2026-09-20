@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Budgets{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Budgets</h1>
+  <div class="month-nav">
+    <a href="/budgets?month={{ prev_month }}">‹</a><strong>{{ month | month_label }}</strong><a href="/budgets?month={{ next_month }}">›</a>
+  </div>
+  <a class="button small" href="/categories">Categories</a>
+</header>
+<p class="muted small">"Every month" is the default. "{{ month | month_label }}" overrides it for this month only. Rollover carries what's left (or overspent) into the next month per the category's setting.</p>
+<form method="post" action="/budgets?month={{ month }}" hx-boost="false">
+{% for group, rows in s.rows | groupby('category.group_name') %}
+<section class="panel">
+  <h2>{{ group or 'Other' }}</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Category</th><th>Every month</th><th>{{ month | month_label }}</th><th class="num hide-m">Carry</th><th class="num hide-m">Spent</th><th class="num">Left</th></tr></thead>
+    <tbody>
+    {% for r in rows %}{% set st = r.state %}
+    <tr>
+      <td><span class="swatch" style="background:{{ r.category.colour }}"></span><a href="/categories/{{ r.category.id }}">{{ r.category.name }}</a></td>
+      <td><input type="text" inputmode="decimal" name="default_{{ r.category.id }}" value="{{ '%.2f' % (r.category.default_budget / 100) if r.category.default_budget else '' }}" placeholder="0.00" style="width:6em;min-height:36px"></td>
+      <td><input type="text" inputmode="decimal" name="month_{{ r.category.id }}" value="{{ '%.2f' % (overrides[r.category.id] / 100) if r.category.id in overrides else '' }}" placeholder="same" style="width:6em;min-height:36px"></td>
+      <td class="num hide-m {{ 'neg' if st.carry < 0 else ('pos' if st.carry > 0) }}">{{ st.carry | money(sign=True) if st.carry else '–' }}</td>
+      <td class="num hide-m">{{ st.spent | money }}</td>
+      <td class="num {{ 'neg' if st.over }}">{{ st.remaining | money(sign=True) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endfor %}
+<div class="actions">
+  <button class="primary" type="submit">Save</button>
+  {% if last_overrides %}<button type="submit" formaction="/budgets/copy-last?month={{ month }}">Copy last month's overrides</button>{% endif %}
+  <a class="button" href="/categories/new?back=/budgets">New category</a>
+  <span class="right muted small">Total {{ s.total_available | money }} · spent {{ s.total_spent | money }}</span>
+</div>
+</form>
+{% endblock %}

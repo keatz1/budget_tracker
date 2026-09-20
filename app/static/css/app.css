@@ -149,7 +149,10 @@ details summary { cursor: pointer; padding: 8px 0; color: var(--accent); }
 .budget-row .bar { grid-column: 1 / -1; }
 .budget-row .name { font-weight: 500; }
 .budget-row .name a { color: var(--text); }
-.budget-row .nums { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.budget-row .nums { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.budget-row .extra { grid-column: 1 / -1; font-size: .78rem; color: var(--muted); margin-top: -2px; }
+.hide-m { display: none; }
+@media (min-width: 640px) { .hide-m { display: table-cell; } }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
 
 /* transactions: cards on phones, table on wide */

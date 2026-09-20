@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ month | month_label }}{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>This month</h1>
+  <div class="month-nav">
+    <a href="/?month={{ prev_month }}" aria-label="Previous month">‹</a>
+    <strong>{{ month | month_label }}</strong>
+    <a href="/?month={{ next_month }}" aria-label="Next month">›</a>
+  </div>
+</header>
+
+{% if not has_data %}
+<section class="panel">
+  <h2>Let's get set up</h2>
+  <ol>
+    <li><a href="/accounts">Add an account</a> for each card or bank account and give it a CSV profile.</li>
+    <li><a href="/import">Import a CSV</a> export from the bank.</li>
+    <li><a href="/review">Review</a> the uncategorised transactions. Each pick makes a rule.</li>
+    <li><a href="/budgets">Set a monthly budget</a> per category.</li>
+  </ol>
+</section>
+{% endif %}
+
+<div class="tiles">
+  <div class="tile"><div class="label">Budget{% if s.total_available != s.total_budget %} <span title="includes rollover">incl. carry</span>{% endif %}</div><div class="value">{{ s.total_available | money }}</div></div>
+  <div class="tile"><div class="label">Spent</div><div class="value">{{ s.total_spent | money }}</div></div>
+  <div class="tile"><div class="label">{{ 'Over' if s.total_remaining < 0 else 'Left' }}</div><div class="value {{ 'neg' if s.total_remaining < 0 else 'pos' }}">{{ s.total_remaining | abs | money }}</div></div>
+  <div class="tile"><div class="label">Uncategorised</div><div class="value {{ 'neg' if s.uncategorised }}">{{ s.uncategorised | money }}</div>{% if review_count %}<a class="small" href="/review">{{ review_count }} to review</a>{% endif %}</div>
+</div>
+
+<section class="panel">
+  <div class="bar {{ 'over' if s.total_remaining < 0 }}" style="height:14px"><span style="width:{{ s.pct }}%"></span></div>
+  <p class="muted small" style="margin:6px 0 0">{{ '%.0f' % s.pct }}% of this month's budget spent{% if s.total_budget != s.total_available %} · budgets {{ s.total_budget | money }} {{ '+' if s.total_available > s.total_budget else '−' }} {{ (s.total_available - s.total_budget) | abs | money }} carried{% endif %}</p>
+</section>
+
+{% for group, rows in s.rows | groupby('category.group_name') %}
+{% set live = rows | selectattr('state.available') | list + rows | selectattr('state.spent') | list %}
+{% if live %}
+<section class="panel">
+  <h2>{{ group or 'Other' }}</h2>
+  {% for r in rows %}
+  {% set st = r.state %}
+  {% if st.available or st.spent %}
+  <div class="budget-row">
+    <span class="name"><span class="swatch" style="background:{{ r.category.colour }}"></span><a href="/transactions?month={{ month }}&category_id={{ r.category.id }}&show=all">{{ r.category.name }}</a></span>
+    <span class="nums"><strong class="{{ 'neg' if st.over }}">{{ st.spent | money }}</strong> of {{ st.available | money }}</span>
+    <div class="bar {{ 'over' if st.over }}"><span style="width:{{ st.pct }}%"></span></div>
+    {% if st.carry or st.sub_budget_spent %}
+    <span class="extra">{% if st.carry %}{{ st.budget | money }} budget {{ '+' if st.carry > 0 else '−' }} {{ st.carry | abs | money }} carried{% endif %}{% if st.carry and st.sub_budget_spent %} · {% endif %}{% if st.sub_budget_spent %}{{ st.sub_budget_spent | money }} in sub-budgets{% endif %}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</section>
+{% endif %}
+{% endfor %}
+
+{% if s.uncategorised %}
+<section class="panel">
+  <div class="budget-row">
+    <span class="name">Uncategorised</span>
+    <span class="nums"><strong class="neg">{{ s.uncategorised | money }}</strong> · <a href="/review">sort it</a></span>
+    <div class="bar"><span style="width:100%;background:var(--warn)"></span></div>
+  </div>
+</section>
+{% endif %}
+
+{% if subs %}
+<section class="panel">
+  <h2>Sub-budgets</h2>
+  {% for st in subs %}
+  <div class="budget-row">
+    <span class="name"><a href="/sub-budgets/{{ st.sub.id }}">{{ st.sub.name }}</a> <span class="muted small">{{ st.sub.category.name }}</span></span>
+    <span class="nums"><strong class="{{ 'neg' if st.over }}">{{ st.spent | money }}</strong> of {{ st.sub.total_amount | money }}{% if st.days_left is not none %} · {% if st.days_left < 0 %}ended{% elif st.days_left == 0 %}last day{% else %}{{ st.days_left }} days left{% endif %}{% endif %}</span>
+    <div class="bar {{ 'over' if st.over }}"><span style="width:{{ st.pct }}%"></span></div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+<p class="muted small"><a href="/budgets?month={{ month }}">Edit budgets</a> · <a href="/dashboards">Dashboards</a></p>
+{% endblock %}

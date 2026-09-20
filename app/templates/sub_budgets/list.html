@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sub-budgets{% endblock %}
+{% block content %}
+<header class="page-head"><h1>Sub-budgets</h1><a class="button primary small" href="/sub-budgets/new">New</a></header>
+<p class="muted small">A pot inside a category with its own total and lifespan: a trip, a renovation, a course of dog training. Spending counts against the category's month and against the pot.</p>
+{% macro card(st) %}
+<div class="sb {{ 'closed' if st.sub.status == 'closed' }}">
+  <div class="top"><a href="/sub-budgets/{{ st.sub.id }}">{{ st.sub.name }}</a><span class="muted small">{{ st.sub.category.name }} · {{ st.sub.start_date.strftime('%b %d %Y') }}{% if st.sub.end_date %} to {{ st.sub.end_date.strftime('%b %d %Y') }}{% endif %}</span></div>
+  <div class="bar {{ 'over' if st.over }}"><span style="width:{{ st.pct }}%"></span></div>
+  <div class="small"><strong class="{{ 'neg' if st.over }}">{{ st.spent | money }}</strong> of {{ st.sub.total_amount | money }} · {{ '%.0f' % st.pct }}% · {{ st.count }} transactions{% if st.days_left is not none and st.sub.status == 'active' %} · {% if st.days_left < 0 %}ended{% else %}{{ st.days_left }} days left{% endif %}{% endif %}</div>
+</div>
+{% endmacro %}
+{% if not active and not closed %}<p class="empty">No sub-budgets yet.</p>{% endif %}
+{% for st in active %}{{ card(st) }}{% endfor %}
+{% if closed %}<h2 style="margin-top:20px">Closed</h2>{% for st in closed %}{{ card(st) }}{% endfor %}{% endif %}
+{% endblock %}

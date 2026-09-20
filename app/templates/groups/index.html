@@ -1,22 +1,7 @@
 {% extends "base.html" %}
 {% block title %}By group{% endblock %}
-{% macro tracker(t, big=False) %}
-<div class="bar seg {{ 'over' if t.over }}" style="height:{{ '14px' if big else '10px' }}" title="{{ t.used | money }} used of {{ t.track | money }}">
-  {% if t.deficit %}<span class="seg-deficit" style="width:{{ t.pct(t.deficit) }}%" title="Overspend carried from last month: {{ t.deficit | money }}"></span>{% endif %}
-  <span class="seg-spent" style="width:{{ t.pct(t.spent) }}%" title="Spent this month: {{ t.spent | money }}"></span>
-  {% if t.budget_mark %}<i class="mark" style="left:{{ t.budget_mark }}%" title="This month's budget: {{ t.budget | money }}"></i>{% endif %}
-</div>
-{% endmacro %}
-{% macro numbers(t) %}
-<span class="nums"><strong class="{{ 'neg' if t.over }}">{{ t.used | money }}</strong> of {{ t.track | money }} · <span class="{{ 'neg' if t.left < 0 else 'pos' }}">{{ t.left | abs | money }} {{ 'over' if t.left < 0 else 'left' }}</span></span>
-{% endmacro %}
+{% from 'partials/tracker.html' import tracker, numbers, split, tiles %}
 {% block content %}
-{% macro carry_tile(t) %}
-<div class="tile"><div class="label">Rolled over</div>
-  <div class="value {{ 'neg' if t.carry < 0 else ('pos' if t.carry > 0) }}">{{ t.carry | money(sign=True) if t.carry else '$0.00' }}</div>
-  {% if t.gross_surplus and t.gross_deficit %}<div class="small muted"><span class="pos">+{{ t.gross_surplus | money }}</span> · <span class="neg">−{{ t.gross_deficit | money }} overspend</span></div>{% endif %}
-</div>
-{% endmacro %}
 <header class="page-head">
   <h1>By group</h1>
   <div class="month-nav">
@@ -38,12 +23,7 @@
 {% if not group and groups | length > 1 %}
 <section class="panel">
   <h2>All groups</h2>
-  <div class="tiles four">
-    <div class="tile"><div class="label">Budget</div><div class="value">{{ all_total.budget | money }}</div></div>
-    {{ carry_tile(all_total) }}
-    <div class="tile"><div class="label">Spent</div><div class="value">{{ all_total.spent | money }}</div></div>
-    <div class="tile"><div class="label">{{ 'Over' if all_total.left < 0 else 'Left' }}</div><div class="value {{ 'neg' if all_total.left < 0 else 'pos' }}">{{ all_total.left | abs | money }}</div></div>
-  </div>
+  {{ tiles(all_total) }}
   {{ tracker(all_total, True) }}
 </section>
 {% endif %}
@@ -52,12 +32,7 @@
 {% set gt = g.total %}
 <section class="panel">
   <h2>{{ g.name }}</h2>
-  <div class="tiles four">
-    <div class="tile"><div class="label">Budget</div><div class="value">{{ gt.budget | money }}</div></div>
-    {{ carry_tile(gt) }}
-    <div class="tile"><div class="label">Spent</div><div class="value">{{ gt.spent | money }}</div></div>
-    <div class="tile"><div class="label">{{ 'Over' if gt.left < 0 else 'Left' }}</div><div class="value {{ 'neg' if gt.left < 0 else 'pos' }}">{{ gt.left | abs | money }}</div></div>
-  </div>
+  {{ tiles(gt) }}
   <div class="budget-row stack group-total">
     <span class="name">Whole group</span>
     {{ numbers(gt) }}
@@ -68,12 +43,7 @@
     <span class="name"><span class="swatch" style="background:{{ cm.category.colour }}"></span><a href="/transactions?month={{ month }}&category_id={{ cm.category.id }}&show=all">{{ cm.category.name }}</a></span>
     {{ numbers(t) }}
     {{ tracker(t) }}
-    <span class="extra">
-      budget {{ t.budget | money }}
-      {% if t.deficit %} · <span class="neg">{{ t.deficit | money }} overspend carried in</span>{% endif %}
-      {% if t.surplus %} · <span class="pos">{{ t.surplus | money }} carried in</span>{% endif %}
-      · spent {{ t.spent | money }}
-    </span>
+    {{ split(t) }}
   </div>
   {% endfor %}
 </section>

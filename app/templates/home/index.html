@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ month | month_label }}{% endblock %}
+{% from 'partials/tracker.html' import tracker, numbers, split, tiles %}
 {% block content %}
 <header class="page-head">
   <h1>This month</h1>
@@ -22,16 +23,16 @@
 </section>
 {% endif %}
 
-<div class="tiles">
-  <div class="tile"><div class="label">Budget{% if s.total_available != s.total_budget %} <span title="includes rollover">incl. carry</span>{% endif %}</div><div class="value">{{ s.total_available | money }}</div></div>
-  <div class="tile"><div class="label">Spent</div><div class="value">{{ s.total_spent | money }}</div></div>
-  <div class="tile"><div class="label">{{ 'Over' if s.total_remaining < 0 else 'Left' }}</div><div class="value {{ 'neg' if s.total_remaining < 0 else 'pos' }}">{{ s.total_remaining | abs | money }}</div></div>
-  <div class="tile"><div class="label">Uncategorised</div><div class="value {{ 'neg' if s.uncategorised }}">{{ s.uncategorised | money }}</div>{% if review_count %}<a class="small" href="/review">{{ review_count }} to review</a>{% endif %}</div>
-</div>
+{% set spent_note %}{% if s.uncategorised %}<div class="small muted">incl. <span class="neg">{{ s.uncategorised | money }}</span> uncategorised{% if review_count %} · <a href="/review">{{ review_count }} to review</a>{% endif %}</div>{% endif %}{% endset %}
+{{ tiles(total, spent_note) }}
 
 <section class="panel">
-  <div class="bar {{ 'over' if s.total_remaining < 0 }}" style="height:14px"><span style="width:{{ s.pct }}%"></span></div>
-  <p class="muted small" style="margin:6px 0 0">{{ '%.0f' % s.pct }}% of this month's budget spent{% if s.total_budget != s.total_available %} · budgets {{ s.total_budget | money }} {{ '+' if s.total_available > s.total_budget else '−' }} {{ (s.total_available - s.total_budget) | abs | money }} carried{% endif %}</p>
+  <div class="budget-row stack">
+    <span class="name">All categories</span>
+    {{ numbers(total) }}
+    {{ tracker(total, True) }}
+    {{ split(total, (' (incl. ' ~ (s.uncategorised | money) ~ ' uncategorised)') if s.uncategorised else '') }}
+  </div>
 </section>
 
 {% for group, rows in s.rows | groupby('category.group') %}
@@ -42,13 +43,12 @@
   {% for r in rows %}
   {% set st = r.state %}
   {% if st.available or st.spent %}
-  <div class="budget-row">
+  {% set t = trackers[r.category.id] %}
+  <div class="budget-row stack">
     <span class="name"><span class="swatch" style="background:{{ r.category.colour }}"></span><a href="/transactions?month={{ month }}&category_id={{ r.category.id }}&show=all">{{ r.category.name }}</a></span>
-    <span class="nums"><strong class="{{ 'neg' if st.over }}">{{ st.spent | money }}</strong> of {{ st.available | money }}</span>
-    <div class="bar {{ 'over' if st.over }}"><span style="width:{{ st.pct }}%"></span></div>
-    {% if st.carry or st.sub_budget_spent %}
-    <span class="extra">{% if st.carry %}{{ st.budget | money }} budget {{ '+' if st.carry > 0 else '−' }} {{ st.carry | abs | money }} carried{% endif %}{% if st.carry and st.sub_budget_spent %} · {% endif %}{% if st.sub_budget_spent %}{{ st.sub_budget_spent | money }} in sub-budgets{% endif %}</span>
-    {% endif %}
+    {{ numbers(t) }}
+    {{ tracker(t) }}
+    {{ split(t, (' · ' ~ (st.sub_budget_spent | money) ~ ' in sub-budgets') if st.sub_budget_spent else '') }}
   </div>
   {% endif %}
   {% endfor %}
@@ -90,5 +90,6 @@
   {% endfor %}
 </section>
 {% endif %}
+<p class="muted small"><span class="legend-swatch" style="background:var(--warn)"></span> overspend carried from last month &nbsp; <span class="legend-swatch" style="background:var(--accent)"></span> spent this month &nbsp; <span class="legend-swatch" style="background:var(--text);width:2px"></span> this month's budget when a surplus was carried in</p>
 <p class="muted small"><a href="/groups?month={{ month }}">By group</a> · <a href="/budgets?month={{ month }}">Edit budgets</a> · <a href="/dashboards">Dashboards</a></p>
 {% endblock %}

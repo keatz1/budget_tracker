@@ -3,7 +3,7 @@ import datetime as dt
 from sqlalchemy import select
 
 from app.models import Category
-from app.routers.groups import Tracker
+from app.budgets.tracker import Tracker
 from tests.test_rollover import spend
 
 
@@ -50,7 +50,7 @@ def test_groups_page(logged_in, db):
 
 
 def test_group_total_keeps_gross_carries():
-    from app.routers.groups import group_total
+    from app.budgets.tracker import group_total
 
     t = group_total([Tracker(50000, -12000, 0), Tracker(30000, 12000, 0)])
     assert t.carry == 0 and t.gross_surplus == 12000 and t.gross_deficit == 12000

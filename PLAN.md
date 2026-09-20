@@ -160,7 +160,19 @@ A sub-budget is a named pot inside a category with a total amount and its own li
    - Year to date vs budget
 10. **Settings**: users (invite, reset password), currency, backup now, export all as CSV.
 
-Every page works on a phone. Both of you will use it from the sofa.
+### Phone first
+
+Most use will be from a phone: checking the month at the shop, categorising a few rows on the sofa. Every page is designed at 375px wide first and widened for the laptop, not the other way round.
+
+- **Transactions on a phone** are a list of cards, not a table: merchant and amount on one line, date and category chip below, tap the chip to change category, swipe or long-press to select for bulk edit. The table view is for wide screens only.
+- **Category dropdowns** open a bottom sheet with a search box, not a native select with 40 options.
+- **Bulk edit action bar** sticks to the bottom of the screen above the thumb.
+- **Charts** shrink to one column, legends collapse to tap-to-toggle, and the 12-month charts scroll horizontally rather than squashing.
+- **Import** works from the phone's file picker, so a CSV downloaded on the phone can go straight in.
+- **Navigation** is a bottom tab bar on phones (This month, Transactions, Review, Dashboards, More) and a sidebar on wide screens.
+- Tap targets 44px minimum. No hover-only controls.
+- **Home screen install**: a web manifest and icon so it can be added to the iPhone home screen and opens full-screen like an app. No offline mode, the Pi has to be reachable.
+- The CI screenshot job renders each page at 375px and 1280px so a layout break is caught before it reaches the Pi.
 
 ## 5. Features you didn't list but will want
 
@@ -188,13 +200,13 @@ Each phase ends with something usable and pushed.
 Repo layout, `pyproject.toml`, FastAPI app with a health route, SQLite + Alembic, Dockerfile, compose file, GitHub Actions running ruff/mypy/pytest. `make dev` runs it on the laptop at `http://localhost:8000`.
 
 **Phase 1: Users and accounts** (1 day)
-Login, sessions, first-run admin setup, invite second user. Accounts CRUD. Base layout, nav, dark mode.
+Login, sessions, first-run admin setup, invite second user. Accounts CRUD. Base layout with the bottom tab bar on phones and sidebar on wide screens, dark mode, web manifest for home-screen install. Playwright screenshot job at 375px and 1280px in CI.
 
 **Phase 2: CSV import** (2 days)
 The three profiles above, plus the column-picker UI. Parser, normaliser, fingerprinting, three-bucket dedupe, preview, commit, undo. This phase gets the most tests, using anonymised slices of your three real exports as fixtures: re-import produces zero new rows, overlapping exports dedupe correctly, the 22 identical Belbim rows all survive, the Chase checking trailing comma parses, pending → posted gets flagged.
 
 **Phase 3: Transactions and categories** (1½ days)
-Categories with groups. Transactions table with filters, inline category edit, exclude, manual add (income and expense), delete, transfers, notes. Bulk edit with select-all-in-filter, the action bar, and undo.
+Categories with groups. Transactions as cards on phones and a table on wide screens, filters, category bottom sheet, exclude, manual add (income and expense), delete, transfers, notes. Bulk edit with select-all-in-filter, the sticky action bar, and undo.
 
 **Phase 4: Rules** (1 day)
 Rules CRUD, "create rule from this transaction", apply-to-existing, category locking, review queue page, rules run at import commit.
@@ -269,6 +281,7 @@ Then from any device on the LAN: `http://<pi-ip>:8000`. Install Tailscale on the
 - No "left to spend". Home page is total budget vs total spend.
 - Income and cash position are tracked elsewhere. Payroll and transfers are excluded from spend by default rules.
 - Bulk edit and sub-budgets are first-class.
+- Phone first. Designed at 375px, widened for the laptop. Installable to the home screen.
 - Two logins, one each, with an audit trail.
 - Sub-budget spend counts against the monthly category budget as well as the sub-budget.
 - Chase checking is imported. Default rules hide payroll, mortgage, and transfers so Venmo and Zelle spend is still caught.

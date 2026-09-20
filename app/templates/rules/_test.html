@@ -1,0 +1,3 @@
+{% if hits is not none %}
+<span class="muted small">Matches {{ hits }} existing transaction{{ '' if hits == 1 else 's' }}{% if sample %}: {% for t in sample %}<code>{{ (t.merchant_name or t.description_raw)[:30] }}</code> {% endfor %}{% endif %}</span>
+{% endif %}

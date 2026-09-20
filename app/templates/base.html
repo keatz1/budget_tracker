@@ -53,7 +53,7 @@
 </aside>
 {% endif %}
 <main class="{{ 'with-nav' if user else 'bare' }}">
-  {% if flash %}<div class="flash" id="flash">{{ flash }}</div>{% endif %}
+  {% if flash %}<div class="flash" id="flash">{{ flash | safe }}</div>{% endif %}
   {% block content %}{% endblock %}
 </main>
 {% if user %}

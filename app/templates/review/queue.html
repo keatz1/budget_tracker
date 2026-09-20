@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Review{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Review</h1>
+  <span class="sub">{{ count }} uncategorised{% if import_id %} from this import · <a href="/review">show all</a>{% endif %}</span>
+</header>
+{% if not groups %}
+<p class="empty">All caught up. Every spending transaction has a category.</p>
+{% else %}
+<p class="muted small">Grouped by merchant. Pick a category once and it applies to the whole group. Leave "make a rule" on and future imports sort themselves.</p>
+<ul class="cards">
+{% for g in groups %}
+  <li class="card review-card">
+    <div class="card-main" style="flex:1 1 200px">
+      <strong>{{ g.label }}</strong>
+      <span class="muted">{{ g.txns | length }} transaction{{ '' if g.txns | length == 1 else 's' }} · {{ g.total | money }}{% if g.bank_hint %} · bank says {{ g.bank_hint }}{% endif %}
+        · {{ g.txns[0].date.strftime('%b %d') }}{% if g.txns | length > 1 %} to {{ g.txns[-1].date.strftime('%b %d') }}{% endif %}</span>
+      <details class="small"><summary>Show</summary>
+        {% for t in g.txns[:8] %}<div class="muted small">{{ t.date }} · {{ t.description_raw[:60] }} · {{ t.amount | money(sign=True) }} <a href="/transactions/{{ t.id }}?back=/review">edit</a></div>{% endfor %}
+        {% if g.txns | length > 8 %}<div class="muted small">…and {{ g.txns | length - 8 }} more</div>{% endif %}
+      </details>
+    </div>
+    <form method="post" action="/review/assign" class="review-actions" hx-boost="false" id="g-{{ loop.index }}">
+      <input type="hidden" name="key" value="{{ g.key }}">
+      <input type="hidden" name="action" value="category">
+      <input type="hidden" name="value" value="">
+      {% if import_id %}<input type="hidden" name="import_id" value="{{ import_id }}">{% endif %}
+      <label class="check small" style="margin:0"><input type="checkbox" name="make_rule" value="1" checked> make a rule</label>
+      <button type="button" class="small primary" onclick="pick('g-{{ loop.index }}')">Category…</button>
+      <button type="submit" class="small" onclick="setAction('g-{{ loop.index }}','exclude')">Exclude</button>
+      <button type="submit" class="small" onclick="setAction('g-{{ loop.index }}','transfer')">Transfer</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+{% set sheet_extra = false %}
+{% include "partials/category_sheet.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+function setAction(id, a) { var f = document.getElementById(id); f.action_.value = a; }
+function pick(id) {
+  var f = document.getElementById(id);
+  Sheet.open('#cat-sheet', function (v) { f.querySelector('[name=action]').value = 'category'; f.querySelector('[name=value]').value = v; f.submit(); });
+}
+document.querySelectorAll('form[id^=g-]').forEach(function (f) { f.action_ = f.querySelector('[name=action]'); });
+</script>
+{% endblock %}

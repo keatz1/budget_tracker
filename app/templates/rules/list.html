@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Rules{% endblock %}
+{% block content %}
+<header class="page-head"><h1>Rules</h1>
+  <div class="actions">
+    <form method="post" action="/rules/run-all" hx-boost="false"><button class="small" type="submit" title="Re-run all rules over transactions you haven't categorised by hand">Re-run all</button></form>
+    <a class="button primary small" href="/rules/new">New rule</a>
+  </div>
+</header>
+<p class="muted small">Checked top to bottom by priority. First match wins. Transactions you categorised by hand are never changed by a rule.</p>
+<ul class="cards">
+{% for r in rules %}
+  <li class="card {{ 'archived' if not r.is_enabled }}">
+    <div class="card-main">
+      <strong>{{ r.name or r.pattern or r.bank_type_equals }}</strong>
+      <span class="muted">
+        #{{ r.priority }} ·
+        {% if r.pattern %}{{ r.match_type | replace('_', ' ') }} "{{ r.pattern }}"{% endif %}
+        {% if r.bank_type_equals %}bank type = {{ r.bank_type_equals }}{% endif %}
+        {% if r.account %} · {{ r.account.name }} only{% endif %}
+        {% if r.date_from or r.date_to %} · {{ r.date_from or '…' }} to {{ r.date_to or '…' }}{% endif %}
+        →
+        {% if r.category %}{{ r.category.name }}{% endif %}
+        {% if r.sub_budget %} · {{ r.sub_budget.name }}{% endif %}
+        {% if r.set_kind %} · {{ r.set_kind }}{% endif %}
+        {% if r.set_excluded %} · excluded{% endif %}
+        {% if r.merchant_name %} · "{{ r.merchant_name }}"{% endif %}
+        · {{ r.hit_count }} hit{{ '' if r.hit_count == 1 else 's' }}{% if r.last_hit_at %}, last {{ r.last_hit_at.strftime('%b %d') }}{% endif %}
+      </span>
+    </div>
+    <div class="card-side">
+      <form method="post" action="/rules/{{ r.id }}/toggle" hx-boost="false"><button class="small" type="submit">{{ 'Off' if r.is_enabled else 'On' }}</button></form>
+      <a class="button small" href="/rules/{{ r.id }}">Edit</a>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

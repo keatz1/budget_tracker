@@ -1,0 +1,21 @@
+<li class="txn {{ 'excluded' if t.is_excluded }} {{ t.kind }} {{ 'uncat' if not t.category_id and t.kind == 'expense' and not t.is_excluded }}" id="txn-{{ t.id }}">
+  <input class="sel" type="checkbox" name="ids" value="{{ t.id }}" form="bulk-form" aria-label="select" onchange="bulkChanged()">
+  <span class="date muted">{{ t.date.strftime('%b %d') }}</span>
+  <a class="desc" href="/transactions/{{ t.id }}?back={{ request.url.path }}%3F{{ request.url.query | urlencode }}" title="{{ t.description_raw }}">{{ t.merchant_name or t.description_raw }}</a>
+  <span class="meta">
+    <span class="date-m">{{ t.date.strftime('%b %d') }}</span>
+    <span class="acct-m">{{ t.account.name }}</span>
+    {% if t.card_holder %}<span>{{ t.card_holder.split(' ')[0] }}</span>{% endif %}
+    {% if t.kind == 'transfer' %}<span class="chip">transfer</span>
+    {% elif t.kind == 'income' %}<span class="chip">income</span>
+    {% elif t.is_excluded %}<span class="chip">excluded</span>
+    {% else %}
+    <button type="button" class="chip {{ 'uncat' if not t.category }}" onclick="pickCategory({{ t.id }})">
+      {% if t.category %}<span class="swatch" style="background:{{ t.category.colour }}"></span>{{ t.category.name }}{% else %}Categorise{% if t.bank_category %} · bank: {{ t.bank_category }}{% endif %}{% endif %}
+    </button>
+    {% endif %}
+    {% if t.sub_budget %}<span class="chip sub">{{ t.sub_budget.name }}</span>{% endif %}
+    {% if t.notes %}<span title="{{ t.notes }}">📝</span>{% endif %}
+  </span>
+  <span class="amt {{ 'pos' if t.amount > 0 }}">{{ t.amount | money(sign=True) }}</span>
+</li>

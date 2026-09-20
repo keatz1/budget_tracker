@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Category{% endblock %}
+{% block content %}
+<header class="page-head"><h1>{{ cat.name if cat else 'New category' }}</h1></header>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form method="post" class="form" hx-boost="false">
+  <input type="hidden" name="back" value="{{ request.query_params.get('back', '') }}">
+  <div class="row">
+    <label>Name <input type="text" name="name" value="{{ cat.name if cat else '' }}" required></label>
+    <label>Group <input type="text" name="group_name" list="groups" value="{{ cat.group_name or '' if cat else '' }}" placeholder="Everyday"><datalist id="groups">{% for g in groups %}<option value="{{ g }}">{% endfor %}</datalist></label>
+    <label>Monthly budget <input type="text" inputmode="decimal" name="default_budget" value="{{ '%.2f' % (cat.default_budget / 100) if cat else '' }}" placeholder="0.00"></label>
+    <label>Colour <input type="color" name="colour" value="{{ cat.colour if cat else '#0f766e' }}" style="padding:2px;height:44px"></label>
+    <label>Rollover
+      <select name="rollover_mode">{% for v, l in modes %}<option value="{{ v }}" {{ 'selected' if cat and cat.rollover_mode == v }}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Rollover cap (optional) <input type="text" inputmode="decimal" name="rollover_cap" value="{{ '%.2f' % (cat.rollover_cap / 100) if cat and cat.rollover_cap else '' }}" placeholder="Max carried balance"></label>
+    <label>Rollover starts (YYYY-MM, optional) <input type="text" name="rollover_start" value="{{ cat.rollover_start or '' if cat else '' }}" placeholder="Defaults to first month with spending"></label>
+    <label>Kind
+      <select name="kind"><option value="expense" {{ 'selected' if not cat or cat.kind == 'expense' }}>Expense</option><option value="income" {{ 'selected' if cat and cat.kind == 'income' }}>Income</option></select>
+    </label>
+    <label>Sort order <input type="number" name="sort_order" value="{{ cat.sort_order if cat else 0 }}"></label>
+  </div>
+  {% if cat %}<label class="check"><input type="checkbox" name="is_archived" {{ 'checked' if cat.is_archived }}> Archived (hidden from pickers, history kept)</label>{% endif %}
+  <div class="actions">
+    <button class="primary" type="submit">Save</button>
+    <a class="button" href="/categories">Cancel</a>
+  </div>
+</form>
+{% if cat %}
+<details class="panel" style="margin-top:12px">
+  <summary>Delete this category</summary>
+  <form method="post" action="/categories/{{ cat.id }}/delete" class="form inline" hx-boost="false" onsubmit="return confirm('Delete {{ cat.name }}?')">
+    <label>Move its transactions to
+      <select name="move_to"><option value="">Uncategorised</option>{% for g in [] %}{% endfor %}</select>
+    </label>
+    <button class="danger" type="submit">Delete</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}

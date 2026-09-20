@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Transactions</h1>
+  {% if f.month %}
+  <div class="month-nav">
+    <a href="/transactions?{{ params | reject_key('month') | urlencode }}&month={{ prev_month }}" aria-label="Previous month">‹</a>
+    <strong>{{ f.month | month_label }}</strong>
+    <a href="/transactions?{{ params | reject_key('month') | urlencode }}&month={{ next_month }}" aria-label="Next month">›</a>
+  </div>
+  {% endif %}
+  <a class="button primary small" href="/transactions/new">Add</a>
+</header>
+
+<form method="get" action="/transactions" class="filters" id="filter-form">
+  <input type="hidden" name="month" value="{{ f.month or 'all' }}">
+  <select name="show" onchange="this.form.submit()">
+    {% for v, l in show_options %}<option value="{{ v }}" {{ 'selected' if f.show == v }}>{{ l }}</option>{% endfor %}
+  </select>
+  <select name="account_id" onchange="this.form.submit()">
+    <option value="">All accounts</option>
+    {% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if f.account_id == a.id }}>{{ a.name }}</option>{% endfor %}
+  </select>
+  <select name="category_id" onchange="this.form.submit()">
+    <option value="">All categories</option>
+    {% for c in cats %}<option value="{{ c.id }}" {{ 'selected' if f.category_id == c.id }}>{{ c.name }}</option>{% endfor %}
+  </select>
+  {% if holders | length > 1 %}
+  <select name="card_holder" onchange="this.form.submit()">
+    <option value="">Anyone</option>
+    {% for h in holders %}<option value="{{ h }}" {{ 'selected' if f.card_holder == h }}>{{ h }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <input class="search" type="search" name="q" value="{{ f.q or '' }}" placeholder="Search" enterkeyhint="search">
+  {% if f.month %}<a class="button small" href="/transactions?{{ params | reject_key('month') | urlencode }}&month=all">All time</a>{% else %}<a class="button small" href="/transactions?{{ params | reject_key('month') | urlencode }}">This month</a>{% endif %}
+</form>
+
+<p class="muted small">{{ total }} transaction{{ '' if total == 1 else 's' }} · {{ total_amount | money(sign=True) }}
+{% if total > rows | length %} · showing page {{ page }} of {{ pages }}{% endif %}
+· <label class="check small" style="display:inline-flex"><input type="checkbox" onchange="selectPage(this.checked)"> select page</label>
+</p>
+
+{% if not rows %}<p class="empty">Nothing here. {% if f.show == 'spend' %}Try "Everything" in the first filter, or <a href="/import">import a CSV</a>.{% endif %}</p>{% endif %}
+
+<form id="bulk-form" method="post" action="/transactions/bulk" hx-boost="false">
+  {% for k, v in params.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <input type="hidden" name="action" id="bulk-action">
+  <input type="hidden" name="value" id="bulk-value">
+  <input type="hidden" name="all" id="bulk-all" value="0">
+</form>
+
+<ul class="txn-list">
+{% for t in rows %}
+  {% if loop.first or t.date != loop.previtem.date %}
+  <li class="day-head">{{ t.date.strftime('%A, %b %d') }}</li>
+  {% endif %}
+  {% include "partials/txn_row.html" %}
+{% endfor %}
+</ul>
+
+{% if pages > 1 %}
+<div class="pager">
+  {% if page > 1 %}<a class="button small" href="/transactions?{{ params | urlencode }}&page={{ page - 1 }}">Newer</a>{% endif %}
+  {% if page < pages %}<a class="button small" href="/transactions?{{ params | urlencode }}&page={{ page + 1 }}">Older</a>{% endif %}
+</div>
+{% endif %}
+
+<div class="bulkbar" id="bulkbar">
+  <strong id="bulk-count">0</strong>
+  <button type="button" class="small" onclick="bulkSelectAll({{ total }})" id="bulk-selectall">All {{ total }}</button>
+  <button type="button" class="small primary" onclick="Sheet.open('#cat-sheet', function(v){ bulkDo('category', v) })">Category…</button>
+  <button type="button" class="small" onclick="bulkDo('exclude')">Exclude</button>
+  <button type="button" class="small" onclick="bulkDo('include')">Include</button>
+  <button type="button" class="small" onclick="bulkDo('transfer')">Transfer</button>
+  {% if subs %}
+  <select id="bulk-sub" onchange="if(this.value!=='_') bulkDo('sub_budget', this.value === '' ? '' : this.value)">
+    <option value="_">Sub-budget…</option><option value="">None</option>
+    {% for s in subs %}<option value="{{ s.id }}">{{ s.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <button type="button" class="small danger" onclick="if(confirm('Delete selected?')) bulkDo('delete')">Delete</button>
+  <button type="button" class="small" onclick="selectPage(false)">Clear</button>
+</div>
+
+{% set sheet_extra = true %}
+{% include "partials/category_sheet.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+function pickCategory(id) {
+  Sheet.open('#cat-sheet', function (v) {
+    htmx.ajax('POST', '/transactions/' + id + '/category', {values: {category_id: v}, target: '#txn-' + id, swap: 'outerHTML'});
+  });
+}
+function selected() { return document.querySelectorAll('.txn input.sel:checked'); }
+function bulkChanged() {
+  var n = selected().length;
+  document.getElementById('bulk-count').textContent = n + ' selected';
+  document.getElementById('bulkbar').classList.toggle('show', n > 0);
+  document.getElementById('bulk-all').value = '0';
+  document.querySelectorAll('.txn').forEach(function (li) { li.classList.toggle('selected', li.querySelector('input.sel').checked); });
+}
+function selectPage(on) { document.querySelectorAll('.txn input.sel').forEach(function (c) { c.checked = on; }); bulkChanged(); }
+function bulkSelectAll(total) {
+  selectPage(true);
+  document.getElementById('bulk-all').value = '1';
+  document.getElementById('bulk-count').textContent = 'all ' + total + ' matching';
+}
+function bulkDo(action, value) {
+  document.getElementById('bulk-action').value = action;
+  document.getElementById('bulk-value').value = value === undefined ? '' : value;
+  document.getElementById('bulk-form').submit();
+}
+function bulkUndo(batch) {
+  var f = document.createElement('form'); f.method = 'post'; f.action = '/transactions/bulk/undo/' + batch; document.body.appendChild(f); f.submit();
+}
+</script>
+{% endblock %}

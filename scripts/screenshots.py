@@ -24,6 +24,20 @@ PAGES = [
 WIDTHS = {"phone": (375, 812), "laptop": (1280, 800)}
 
 
+def _launch(p):
+    """Default Chromium, or the one preinstalled under PLAYWRIGHT_BROWSERS_PATH."""
+    import glob
+
+    try:
+        return p.chromium.launch()
+    except Exception:
+        root = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "/opt/pw-browsers")
+        found = sorted(glob.glob(f"{root}/chromium-*/chrome-linux/chrome"))
+        if not found:
+            raise
+        return p.chromium.launch(executable_path=found[-1])
+
+
 def main() -> int:
     from playwright.sync_api import sync_playwright
 
@@ -54,7 +68,7 @@ def main() -> int:
                 time.sleep(0.2)
         subprocess.run([sys.executable, "scripts/demo_data.py"], env=env, check=False)
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = _launch(p)
             for name, (w, h) in WIDTHS.items():
                 ctx = browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=1)
                 page = ctx.new_page()

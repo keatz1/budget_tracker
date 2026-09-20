@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Categories{% endblock %}
+{% block content %}
+<header class="page-head"><h1>Categories</h1>
+  <div class="actions"><a class="button small" href="/budgets">Budgets</a><a class="button primary small" href="/categories/new">New</a></div>
+</header>
+{% for group, items in cats | groupby('group_name') %}
+<section class="panel">
+  <h2>{{ group or 'Other' }}</h2>
+  <ul class="cards">
+  {% for c in items %}
+    <li class="card {{ 'archived' if c.is_archived }}">
+      <div class="card-main">
+        <strong><span class="swatch" style="background:{{ c.colour }}"></span>{{ c.name }}{% if c.kind == 'income' %} <span class="muted small">income</span>{% endif %}</strong>
+        <span class="muted">{{ c.default_budget | money }}/mo · {{ {'carry_all':'carries over','carry_positive_only':'carries surplus','none':'no rollover'}[c.rollover_mode] }}{% if c.rollover_cap %} · cap {{ c.rollover_cap | money }}{% endif %} · {{ counts.get(c.id, 0) }} txns</span>
+      </div>
+      <a class="button small" href="/categories/{{ c.id }}">Edit</a>
+    </li>
+  {% endfor %}
+  </ul>
+</section>
+{% endfor %}
+{% endblock %}

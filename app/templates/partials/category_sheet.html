@@ -1,0 +1,19 @@
+<div class="sheet-backdrop" id="sheet-backdrop"></div>
+<div class="sheet" id="cat-sheet" role="dialog" aria-label="Pick a category">
+  <header><input type="search" placeholder="Search categories" aria-label="Search"><button type="button" class="small" onclick="Sheet.close()">Close</button></header>
+  <div class="options">
+    {% if sheet_extra %}
+    <button type="button" data-value="" data-label="Uncategorised">Uncategorised</button>
+    <button type="button" data-value="exclude" data-label="Exclude">Exclude from tracking</button>
+    <button type="button" data-value="transfer" data-label="Transfer">Mark as transfer</button>
+    {% endif %}
+    {% for group, items in cats | groupby('group_name') %}
+    <div class="group">{{ group or 'Other' }}</div>
+    {% for c in items %}
+    <button type="button" data-value="{{ c.id }}" data-label="{{ c.name }}"><span class="swatch" style="background:{{ c.colour }}"></span>{{ c.name }}</button>
+    {% endfor %}
+    {% endfor %}
+    <div class="group">Manage</div>
+    <button type="button" onclick="location.href='/categories/new'">+ New category</button>
+  </div>
+</div>

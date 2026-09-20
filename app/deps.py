@@ -16,6 +16,7 @@ from app.util import cents_to_str, month_label
 templates = Jinja2Templates(directory="app/templates")
 templates.env.filters["money"] = cents_to_str
 templates.env.filters["month_label"] = month_label
+templates.env.filters["reject_key"] = lambda d, k: {a: b for a, b in d.items() if a != k}
 templates.env.globals["currency"] = settings.currency_symbol
 
 

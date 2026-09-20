@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Rule{% endblock %}
+{% block content %}
+<header class="page-head"><h1>{{ 'Edit rule' if rule else 'New rule' }}</h1></header>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% set r = rule %}
+<form method="post" class="form" hx-boost="false">
+  <label>Name <input type="text" name="name" value="{{ r.name or '' if r else prefill.get('name', '') }}"></label>
+  <h3>When a transaction…</h3>
+  <div class="row">
+    <label>Description
+      <select name="match_type">{% for v, l in match_types %}<option value="{{ v }}" {{ 'selected' if r and r.match_type == v }}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Pattern <input type="text" name="pattern" value="{{ r.pattern or '' if r else prefill.get('pattern', '') }}" placeholder="AMAZON" hx-get="/rules/test" hx-trigger="input changed delay:400ms" hx-target="#test" hx-include="closest form" hx-boost="false" hx-swap="innerHTML"></label>
+    <label>Bank type is exactly (optional) <input type="text" name="bank_type_equals" value="{{ r.bank_type_equals or '' if r else '' }}" placeholder="Payment"></label>
+    <label>Only on account
+      <select name="account_id"><option value="">Any</option>{% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if (r and r.account_id == a.id) or (not r and prefill.get('account_id') == a.id) }}>{{ a.name }}</option>{% endfor %}</select>
+    </label>
+    <label>From date (optional) <input type="date" name="date_from" value="{{ r.date_from.isoformat() if r and r.date_from else '' }}"></label>
+    <label>To date (optional) <input type="date" name="date_to" value="{{ r.date_to.isoformat() if r and r.date_to else '' }}"></label>
+  </div>
+  <div id="test" style="min-height:1.4em"></div>
+  <h3>…then</h3>
+  <div class="row">
+    <label>Set category
+      <select name="category_id"><option value="">leave as is</option>
+        {% for group, items in cats | groupby('group_name') %}<optgroup label="{{ group or 'Other' }}">{% for c in items %}<option value="{{ c.id }}" {{ 'selected' if (r and r.category_id == c.id) or (not r and prefill.get('category_id') == c.id) }}>{{ c.name }}</option>{% endfor %}</optgroup>{% endfor %}
+      </select>
+    </label>
+    <label>Assign to sub-budget
+      <select name="sub_budget_id"><option value="">none</option>{% for s in subs %}<option value="{{ s.id }}" {{ 'selected' if r and r.sub_budget_id == s.id }}>{{ s.name }}{% if s.status == 'closed' %} (closed){% endif %}</option>{% endfor %}</select>
+    </label>
+    <label>Display name <input type="text" name="merchant_name" value="{{ r.merchant_name or '' if r else '' }}" placeholder="Amazon"></label>
+    <label>Set type
+      <select name="set_kind"><option value="">leave as is</option>{% for k in ['expense','income','transfer'] %}<option value="{{ k }}" {{ 'selected' if r and r.set_kind == k }}>{{ k }}</option>{% endfor %}</select>
+    </label>
+    <label>Priority (lower runs first) <input type="number" name="priority" value="{{ r.priority if r else 100 }}"></label>
+  </div>
+  <label class="check"><input type="checkbox" name="set_excluded" {{ 'checked' if r and r.set_excluded }}> Exclude from tracking</label>
+  <label class="check"><input type="checkbox" name="is_enabled" {{ 'checked' if not r or r.is_enabled }}> Enabled</label>
+  <label class="check"><input type="checkbox" name="apply_existing" checked> Apply to existing transactions now (ones categorised by hand are left alone)</label>
+  <div class="actions">
+    <button class="primary" type="submit">Save rule</button>
+    <a class="button" href="/rules">Cancel</a>
+    {% if r %}<button class="danger right" type="submit" formaction="/rules/{{ r.id }}/delete" onclick="return confirm('Delete this rule?')">Delete</button>{% endif %}
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}CSV profile{% endblock %}
+{% block content %}
+<header class="page-head"><h1>{{ profile.name if profile else 'New CSV profile' }}</h1></header>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if not headers %}
+<form method="post" action="/import/profiles/sample" enctype="multipart/form-data" class="form" hx-boost="false">
+  {% if profile %}<input type="hidden" name="profile_id" value="{{ profile.id }}">{% endif %}
+  <label>Upload a sample export to pick columns from <input type="file" name="file" accept=".csv,text/csv"></label>
+  <label>Or type the header names below <input type="text" name="headers" placeholder="Date,Description,Amount,Balance"></label>
+  <button class="primary" type="submit">Next</button>
+</form>
+{% else %}
+{% macro col(name, label, value, required=False) %}
+<label>{{ label }}
+  <select name="{{ name }}" {{ 'required' if required }}>
+    <option value="">{{ 'pick one' if required else 'not in this file' }}</option>
+    {% for h in headers %}<option value="{{ h }}" {{ 'selected' if value == h }}>{{ h }}</option>{% endfor %}
+  </select>
+</label>
+{% endmacro %}
+<form method="post" action="/import/profiles/{{ profile.id if profile else 'new' }}" class="form" hx-boost="false">
+  {% for h in headers %}<input type="hidden" name="headers" value="{{ h }}">{% endfor %}
+  <fieldset {{ 'disabled' if profile and profile.is_builtin }} style="border:0;padding:0;margin:0">
+  <label>Profile name <input type="text" name="name" value="{{ profile.name if profile else '' }}" required></label>
+  <div class="row">
+    {{ col('col_date', 'Date column', profile.col_date if profile, True) }}
+    {{ col('col_post_date', 'Post / clearing date', profile.col_post_date if profile) }}
+    {{ col('col_description', 'Description', profile.col_description if profile, True) }}
+    {{ col('col_merchant', 'Clean merchant name', profile.col_merchant if profile) }}
+    {{ col('col_amount', 'Amount (single signed column)', profile.col_amount if profile) }}
+    {{ col('col_debit', 'Debit column (if separate)', profile.col_debit if profile) }}
+    {{ col('col_credit', 'Credit column (if separate)', profile.col_credit if profile) }}
+    {{ col('col_balance', 'Running balance', profile.col_balance if profile) }}
+    {{ col('col_reference', 'Reference / memo', profile.col_reference if profile) }}
+    {{ col('col_bank_category', "Bank's category", profile.col_bank_category if profile) }}
+    {{ col('col_bank_type', "Bank's type (Sale / Payment / ACH...)", profile.col_bank_type if profile) }}
+    {{ col('col_card_holder', 'Card holder / purchased by', profile.col_card_holder if profile) }}
+  </div>
+  <div class="row three">
+    <label>Date format
+      <select name="date_format">
+        {% for f, l in [('%m/%d/%Y','09/17/2026'),('%m/%d/%y','9/17/26'),('%Y-%m-%d','2026-09-17'),('%d/%m/%Y','17/09/2026'),('%d %b %Y','17 Sep 2026')] %}
+        <option value="{{ f }}" {{ 'selected' if profile and profile.date_format == f }}>{{ l }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Positive amounts mean
+      <select name="positive_kind">
+        <option value="expense" {{ 'selected' if profile and profile.positive_kind == 'expense' }}>a refund on a card (expense)</option>
+        <option value="income" {{ 'selected' if profile and profile.positive_kind == 'income' }}>money in (income)</option>
+      </select>
+    </label>
+    <label>Skip rows above the header <input type="number" name="skip_rows" min="0" value="{{ profile.skip_rows if profile else 0 }}"></label>
+  </div>
+  <label class="check"><input type="checkbox" name="negate_amounts" {{ 'checked' if profile and profile.negate_amounts }}> Flip the sign (the bank writes purchases as positive numbers, like Apple Card)</label>
+  </fieldset>
+  <div class="actions">
+    {% if not (profile and profile.is_builtin) %}<button class="primary" type="submit">Save profile</button>{% endif %}
+    <a class="button" href="/import/profiles">Back</a>
+    {% if profile and not profile.is_builtin %}
+    <button class="danger right" type="submit" formaction="/import/profiles/{{ profile.id }}/delete" onclick="return confirm('Delete this profile?')">Delete</button>
+    {% endif %}
+  </div>
+</form>
+{% endif %}
+{% endblock %}

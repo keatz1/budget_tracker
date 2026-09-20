@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Import history{% endblock %}
+{% block content %}
+<header class="page-head"><h1>Import history</h1><a class="button small" href="/import">Import</a></header>
+{% if not imports %}<p class="empty">No imports yet.</p>{% endif %}
+<ul class="cards">
+{% for i in imports %}
+  <li class="card {{ 'archived' if i.undone_at }}">
+    <div class="card-main">
+      <strong>{{ i.account.name }} · {{ i.imported_at.strftime('%b %d %Y, %H:%M') }}</strong>
+      <span class="muted">{{ i.filename }} · {{ i.rows_total }} rows: {{ i.rows_new }} new, {{ i.rows_duplicate }} already had, {{ i.rows_flagged }} flagged · by {{ i.user.display_name }}{% if i.undone_at %} · undone{% endif %}</span>
+    </div>
+    {% if not i.undone_at and i.rows_new %}
+    <form method="post" action="/import/{{ i.id }}/undo" hx-boost="false" onsubmit="return confirm('Remove the {{ i.rows_new }} transactions from this import? Ones you have edited are kept.')">
+      <button class="small danger" type="submit">Undo</button>
+    </form>
+    {% endif %}
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}CSV profiles{% endblock %}
+{% block content %}
+<header class="page-head"><h1>CSV profiles</h1><a class="button primary small" href="/import/profiles/new">New profile</a></header>
+<p class="muted small">A profile says which column is what in a bank's export. Built-in ones cover Chase and Apple Card. Make a new one by uploading a sample export and picking columns.</p>
+<ul class="cards">
+{% for p in profiles %}
+  <li class="card">
+    <div class="card-main">
+      <strong>{{ p.name }}{% if p.is_builtin %} <span class="muted small">built-in</span>{% endif %}</strong>
+      <span class="muted">date: {{ p.col_date }} · description: {{ p.col_description }} · amount: {{ p.col_amount or (p.col_debit ~ ' / ' ~ p.col_credit) }}{% if p.negate_amounts %} · sign flipped{% endif %}</span>
+    </div>
+    <div class="card-side">
+      <a class="button small" href="/import/profiles/{{ p.id }}">{{ 'View' if p.is_builtin else 'Edit' }}</a>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% endblock %}

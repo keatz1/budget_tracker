@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: e718a5a0752a
+Revision ID: a17e16b08b91
 Revises: 
-Create Date: 2026-09-20 12:39:28.181522
+Create Date: 2026-09-20 12:51:43.171204
 """
 from typing import Sequence, Union
 
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = 'e718a5a0752a'
+revision: str = 'a17e16b08b91'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -164,7 +164,7 @@ def upgrade() -> None:
     sa.Column('account_id', sa.Integer(), nullable=False),
     sa.Column('import_id', sa.Integer(), nullable=True),
     sa.Column('date', sa.Date(), nullable=False),
-    sa.Column('post_date', sa.Date(), nullable=False),
+    sa.Column('post_date', sa.Date(), nullable=True),
     sa.Column('description_raw', sa.Text(), nullable=False),
     sa.Column('description_clean', sa.Text(), nullable=False),
     sa.Column('merchant_name', sa.String(length=200), nullable=True),

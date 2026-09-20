@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Import{% endblock %}
+{% block content %}
+<header class="page-head">
+  <h1>Import CSV</h1>
+  <div class="actions"><a class="button small" href="/import/history">History</a><a class="button small" href="/import/profiles">CSV profiles</a></div>
+</header>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+{% if not accounts %}
+<p class="empty">Add an <a href="/accounts/new">account</a> first and give it a CSV profile.</p>
+{% else %}
+<form method="post" action="/import/preview" enctype="multipart/form-data" class="form" hx-boost="false">
+  <label>Account
+    <select name="account_id" required>
+      {% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if a.id == last_account_id }}>{{ a.name }}{% if a.csv_profile %} · {{ a.csv_profile.name }}{% else %} · no profile!{% endif %}</option>{% endfor %}
+    </select>
+  </label>
+  <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
+  <button class="primary" type="submit">Preview</button>
+  <p class="muted small">Export a running list from the bank as often as you like. Rows already imported are skipped. Nothing is saved until you confirm the preview.</p>
+</form>
+{% endif %}
+{% if recent %}
+<section class="panel">
+  <h2>Recent imports</h2>
+  <ul class="cards">
+  {% for i in recent %}
+    <li class="card"><div class="card-main"><strong>{{ i.account.name }}</strong><span class="muted">{{ i.imported_at.strftime('%b %d, %H:%M') }} · {{ i.filename }} · {{ i.rows_new }} new, {{ i.rows_duplicate }} already had{% if i.undone_at %} · undone{% endif %}</span></div></li>
+  {% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.db import SessionLocal, run_migrations
 from app.deps import NeedsLogin
-from app.routers import accounts, auth
+from app.routers import accounts, auth, imports
 from app.routers import settings as settings_router
 from app.seed import seed
 
@@ -44,3 +44,4 @@ def health():
 app.include_router(auth.router)
 app.include_router(accounts.router)
 app.include_router(settings_router.router)
+app.include_router(imports.router)

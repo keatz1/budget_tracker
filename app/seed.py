@@ -84,6 +84,20 @@ DEFAULT_RULES: list[dict] = [
         "priority": 10,
     },
     {
+        "name": "Transfer from another bank (bank Type)",
+        "bank_type_equals": "PARTNERFI_TO_CHASE",
+        "set_kind": "transfer",
+        "set_excluded": True,
+        "priority": 10,
+    },
+    {
+        "name": "Transfer to another bank (bank Type)",
+        "bank_type_equals": "CHASE_TO_PARTNERFI",
+        "set_kind": "transfer",
+        "set_excluded": True,
+        "priority": 10,
+    },
+    {
         "name": "Loan / card payment (bank Type)",
         "bank_type_equals": "LOAN_PMT",
         "set_kind": "transfer",

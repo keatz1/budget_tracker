@@ -1,9 +1,12 @@
 """Built-in CSV profiles, starter categories and default rules. Idempotent."""
 
-from sqlalchemy import select
+from datetime import date
+
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models import Category, CsvProfile, Rule
+from app.app_settings import DEFAULT_TRACKING_START, TRACKING_START
+from app.models import AppSetting, Category, CsvProfile, Rule, Transaction
 
 BUILTIN_PROFILES: list[dict] = [
     {
@@ -160,6 +163,14 @@ def seed(db: Session) -> None:
                     sort_order=900 + i, rollover_mode="none",
                 )
             )  # fmt: skip
+    if db.get(AppSetting, TRACKING_START) is None:
+        # First time this setting exists: apply it to whatever is already imported.
+        db.add(AppSetting(key=TRACKING_START, value=DEFAULT_TRACKING_START))
+        db.execute(
+            update(Transaction)
+            .where(Transaction.date < date.fromisoformat(DEFAULT_TRACKING_START))
+            .values(is_excluded=True)
+        )
     if db.scalar(select(Rule.id).limit(1)) is None:
         for r in DEFAULT_RULES:
             db.add(Rule(**r))

@@ -39,7 +39,7 @@ After the first time, starting takes about ten seconds.
 The first page asks for your name, email and a password. That makes you the admin. Then:
 
 1. **Accounts** → **Add account**. One for each card or bank account. Pick the matching CSV profile: *Chase credit card*, *Chase checking*, or *Apple Card*.
-2. **Import** → pick the account → choose the CSV you downloaded from the bank → **Preview** → **Import**.
+2. **Import** → choose the CSVs you downloaded from the bank (all of them at once is fine) → **Preview** → **Import**. The app tells which bank and account each file is from by its columns. Anything dated before Aug 1 2026 is ignored; change that date in Settings.
 3. **Review** shows everything that doesn't have a category yet, grouped by shop. Tap **Category…** on each group and pick one. Leave "make a rule" ticked so the next import sorts itself.
 4. **Budgets** → type a monthly amount next to each category → **Save**.
 5. **Settings** → **Invite someone** → type Sally's name and email. Copy the link that appears and send it to her. She opens it and sets her own password.

@@ -8,7 +8,7 @@
   <li class="card {{ 'archived' if i.undone_at }}">
     <div class="card-main">
       <strong>{{ i.account.name }} · {{ i.imported_at.strftime('%b %d %Y, %H:%M') }}</strong>
-      <span class="muted">{{ i.filename }} · {{ i.rows_total }} rows: {{ i.rows_new }} new, {{ i.rows_duplicate }} already had, {{ i.rows_flagged }} flagged · by {{ i.user.display_name }}{% if i.undone_at %} · undone{% endif %}</span>
+      <span class="muted">{{ i.filename }} · {{ i.rows_total }} rows: {{ i.rows_new }} new, {{ i.rows_duplicate }} already had, {{ i.rows_flagged }} flagged{% if i.rows_skipped_old %}, {{ i.rows_skipped_old }} before tracking start{% endif %} · by {{ i.user.display_name }}{% if i.undone_at %} · undone{% endif %}</span>
     </div>
     {% if not i.undone_at and i.rows_new %}
     <form method="post" action="/import/{{ i.id }}/undo" hx-boost="false" onsubmit="return confirm('Remove the {{ i.rows_new }} transactions from this import? Ones you have edited are kept.')">

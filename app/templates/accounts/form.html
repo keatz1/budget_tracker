@@ -22,6 +22,9 @@
     </select>
     <small class="muted">Which bank's CSV layout this account exports. <a href="/import/profiles">Manage profiles</a>.</small>
   </label>
+  <label>Text in this account's file names (optional) <input type="text" name="import_hint" value="{{ account.import_hint or '' if account else '' }}" placeholder="8393">
+    <small class="muted">Only needed when two accounts share a layout, like two Chase cards. Chase puts the last four digits in the file name, e.g. Chase8393_Activity.csv.</small>
+  </label>
   {% if account %}
   <label class="check"><input type="checkbox" name="is_archived" {{ 'checked' if account.is_archived }}> Archived</label>
   {% endif %}

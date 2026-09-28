@@ -8,6 +8,10 @@ from app.models import Base
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+# The app sets the URL from BT_DATABASE_PATH; make the alembic CLI do the same.
+from app.config import settings  # noqa: E402
+
+config.set_main_option("sqlalchemy.url", settings.database_url)
 target_metadata = Base.metadata
 
 

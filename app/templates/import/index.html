@@ -10,14 +10,9 @@
 <p class="empty">Add an <a href="/accounts/new">account</a> first and give it a CSV profile.</p>
 {% else %}
 <form method="post" action="/import/preview" enctype="multipart/form-data" class="form" hx-boost="false">
-  <label>Account
-    <select name="account_id" required>
-      {% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if a.id == last_account_id }}>{{ a.name }}{% if a.csv_profile %} · {{ a.csv_profile.name }}{% else %} · no profile!{% endif %}</option>{% endfor %}
-    </select>
-  </label>
-  <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
+  <label>CSV files from the bank <input type="file" name="files" accept=".csv,text/csv" multiple required></label>
   <button class="primary" type="submit">Preview</button>
-  <p class="muted small">Export a running list from the bank as often as you like. Rows already imported are skipped. Nothing is saved until you confirm the preview.</p>
+  <p class="muted small">Pick one file or several at once. The app works out which bank and account each one belongs to from its columns. Rows already imported are skipped, and rows before {{ start.strftime('%b %d %Y') }} are ignored (change that in Settings). Nothing is saved until you confirm the preview.</p>
 </form>
 {% endif %}
 {% if recent %}

@@ -1,74 +1,95 @@
 {% extends "base.html" %}
 {% block title %}Import preview{% endblock %}
 {% block content %}
-<header class="page-head"><h1>Preview: {{ account.name }}</h1><span class="sub">{{ staged.filename }}</span></header>
-{% if staged.already_imported %}
-<div class="notice">This exact file was imported on {{ staged.already_imported.imported_at.strftime('%b %d') }}. Everything in it should show as already imported below.</div>
-{% endif %}
-<div class="tiles">
-  <div class="tile"><div class="label">Rows in file</div><div class="value">{{ c.total }}</div></div>
-  <div class="tile"><div class="label">New</div><div class="value pos">{{ c.new | length }}</div></div>
-  <div class="tile"><div class="label">Already imported</div><div class="value muted">{{ c.duplicate | length }}</div></div>
-  <div class="tile"><div class="label">Needs a look</div><div class="value {{ 'neg' if c.flagged }}">{{ c.flagged | length }}</div></div>
-</div>
-
+<header class="page-head"><h1>Preview</h1><span class="sub">{{ staged | length }} file{{ '' if staged | length == 1 else 's' }}</span></header>
 <form method="post" action="/import/commit" hx-boost="false">
-  <input type="hidden" name="account_id" value="{{ account.id }}">
-  <input type="hidden" name="sha" value="{{ staged.sha }}">
-  <input type="hidden" name="filename" value="{{ staged.filename }}">
+{% set ns = namespace(importable=0) %}
+{% for st in staged %}
+{% set i = st.index %}
+<section class="panel">
+  <h2>{{ st.filename }}</h2>
+  {% if st.error %}
+  <div class="error">{{ st.error }}</div>
+  {% else %}
+  {% set c = st.classified %}
+  {% set ns.importable = ns.importable + (c.new | length) + (c.flagged | length) %}
+  <input type="hidden" name="sha_{{ i }}" value="{{ st.sha }}">
+  <input type="hidden" name="filename_{{ i }}" value="{{ st.filename }}">
+  <div class="row">
+    <label>Recognised as
+      <input type="text" value="{{ st.profile.name }}" readonly>
+    </label>
+    <label>Account
+      <select name="account_id_{{ i }}" required>
+        {% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if st.account and a.id == st.account.id }}>{{ a.name }}{% if a.csv_profile_id != st.profile.id %} (different layout){% endif %}</option>{% endfor %}
+      </select>
+      {% if st.match and not st.match.account %}
+      <small class="notice" style="display:block;padding:6px 10px;margin-top:4px">Two or more accounts use this layout, so check this is the right one.
+        {% if st.match.hint_from_filename %}<label class="check small" style="margin:6px 0 0"><input type="checkbox" name="remember_{{ i }}" value="1" checked><input type="hidden" name="hint_{{ i }}" value="{{ st.match.hint_from_filename }}"> Remember: files with "{{ st.match.hint_from_filename }}" in the name are this account</label>{% endif %}
+      </small>
+      {% endif %}
+    </label>
+  </div>
+  {% if st.already_imported %}
+  <div class="notice">This exact file was imported on {{ st.already_imported.imported_at.strftime('%b %d') }}. Everything in it should show as already imported.</div>
+  {% endif %}
+  <div class="tiles four">
+    <div class="tile"><div class="label">New</div><div class="value pos">{{ c.new | length }}</div></div>
+    <div class="tile"><div class="label">Already imported</div><div class="value muted">{{ c.duplicate | length }}</div></div>
+    <div class="tile"><div class="label">Needs a look</div><div class="value {{ 'neg' if c.flagged }}">{{ c.flagged | length }}</div></div>
+    <div class="tile"><div class="label">Before {{ start.strftime('%b %d %Y') }}</div><div class="value muted">{{ st.skipped_old }}</div></div>
+  </div>
 
   {% if c.flagged %}
-  <section class="panel">
-    <h2>Needs a look</h2>
-    <p class="muted small">Same amount within 3 days of something already imported, but a different description. Usually a pending charge that posted under a new name. Skip those. Keep the ones that are really separate purchases.</p>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Keep?</th><th>In this file</th><th>Already imported</th><th class="num">Amount</th></tr></thead>
-      <tbody>
-      {% for f in c.flagged %}
-      <tr>
-        <td>
-          <label class="check small"><input type="radio" name="flag_{{ f.row.index }}" value="skip" checked> Skip</label>
-          <label class="check small"><input type="radio" name="flag_{{ f.row.index }}" value="keep"> Keep</label>
-        </td>
-        <td class="wrap">{{ f.row.date }} · {{ f.row.description_raw }}</td>
-        <td class="wrap">{{ f.existing.date }} · {{ f.existing.description_raw }}</td>
-        <td class="num">{{ f.row.amount | money(sign=True) }}</td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table></div>
-  </section>
+  <h3>Needs a look</h3>
+  <p class="muted small">Same amount within 3 days of something already imported, but a different description. Usually a pending charge that posted under a new name. Skip those; keep real separate purchases.</p>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Keep?</th><th>In this file</th><th>Already imported</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+    {% for f in c.flagged %}
+    <tr>
+      <td>
+        <label class="check small"><input type="radio" name="flag_{{ i }}_{{ f.row.index }}" value="skip" checked> Skip</label>
+        <label class="check small"><input type="radio" name="flag_{{ i }}_{{ f.row.index }}" value="keep"> Keep</label>
+      </td>
+      <td class="wrap">{{ f.row.date }} · {{ f.row.description_raw }}</td>
+      <td class="wrap">{{ f.existing.date }} · {{ f.existing.description_raw }}</td>
+      <td class="num">{{ f.row.amount | money(sign=True) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
   {% endif %}
 
-  <section class="panel">
-    <h2>New rows{% if c.new | length > 30 %} (first 30 of {{ c.new | length }}){% endif %}</h2>
-    {% if not c.new %}<p class="muted">Nothing new in this file.</p>{% else %}
-    <div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th>Will be</th></tr></thead>
-      <tbody>
-      {% for r in c.new[:30] %}
-      {% set rule = staged.predictions.get(r.index) %}
-      <tr>
-        <td>{{ r.date.strftime('%b %d') }}</td>
-        <td class="wrap">{{ r.merchant_name or r.description_raw }}{% if r.card_holder %} <span class="muted small">· {{ r.card_holder }}</span>{% endif %}</td>
-        <td class="num {{ 'pos' if r.amount > 0 }}">{{ r.amount | money(sign=True) }}</td>
-        <td>
-          {% if rule and rule.set_kind == 'transfer' %}<span class="chip">transfer</span>
-          {% elif rule and rule.set_excluded %}<span class="chip">excluded</span>
-          {% elif rule and rule.category %}<span class="chip">{{ rule.category.name }}</span>
-          {% elif r.bank_category %}<span class="chip uncat">review · bank says {{ r.bank_category }}</span>
-          {% else %}<span class="chip uncat">review</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table></div>
-    {% endif %}
-  </section>
-
-  <div class="actions">
-    <button class="primary" type="submit" {{ 'disabled' if not c.new and not c.flagged }}>Import {{ c.new | length }}{% if c.flagged %} + kept{% endif %} rows</button>
-    <a class="button" href="/import">Cancel</a>
-  </div>
+  <h3>New rows{% if c.new | length > 30 %} (first 30 of {{ c.new | length }}){% endif %}</h3>
+  {% if not c.new %}<p class="muted">Nothing new in this file.</p>{% else %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Date</th><th>Description</th><th class="num">Amount</th><th>Will be</th></tr></thead>
+    <tbody>
+    {% for r in c.new[:30] %}
+    {% set rule = st.predictions.get(r.index) %}
+    <tr>
+      <td>{{ r.date.strftime('%b %d') }}</td>
+      <td class="wrap">{{ r.merchant_name or r.description_raw }}{% if r.card_holder %} <span class="muted small">· {{ r.card_holder }}</span>{% endif %}</td>
+      <td class="num {{ 'pos' if r.amount > 0 }}">{{ r.amount | money(sign=True) }}</td>
+      <td>
+        {% if rule and rule.set_kind == 'transfer' %}<span class="chip">transfer</span>
+        {% elif rule and rule.set_excluded %}<span class="chip">excluded</span>
+        {% elif rule and rule.category %}<span class="chip">{{ rule.category.name }}</span>
+        {% elif r.bank_category %}<span class="chip uncat">review · bank says {{ r.bank_category }}</span>
+        {% else %}<span class="chip uncat">review</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+  {% endif %}
+</section>
+{% endfor %}
+<div class="actions">
+  <button class="primary" type="submit" {{ 'disabled' if not ns.importable }}>Import</button>
+  <a class="button" href="/import">Cancel</a>
+</div>
 </form>
 {% endblock %}

@@ -29,6 +29,15 @@ class User(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class AppSetting(Base):
+    """Small key/value store for things set from the Settings page."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(50), primary_key=True)
+    value: Mapped[str] = mapped_column(String(255))
+
+
 class CsvProfile(Base):
     """Which column is what in a bank's CSV export. Columns are header names."""
 
@@ -67,6 +76,9 @@ class Account(Base):
     institution: Mapped[str | None] = mapped_column(String(100))
     kind: Mapped[str] = mapped_column(String(20), default="credit")  # checking|credit|savings
     csv_profile_id: Mapped[int | None] = mapped_column(ForeignKey("csv_profiles.id"))
+    # Text that appears in this account's export file names, e.g. "8393", used to
+    # tell two accounts with the same CSV layout apart.
+    import_hint: Mapped[str | None] = mapped_column(String(100))
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False)
 
     csv_profile: Mapped[CsvProfile | None] = relationship()
@@ -130,6 +142,7 @@ class Import(Base):
     rows_new: Mapped[int] = mapped_column(Integer, default=0)
     rows_duplicate: Mapped[int] = mapped_column(Integer, default=0)
     rows_flagged: Mapped[int] = mapped_column(Integer, default=0)
+    rows_skipped_old: Mapped[int] = mapped_column(Integer, default=0)
     undone_at: Mapped[dt.datetime | None] = mapped_column(DateTime)
 
     account: Mapped[Account] = relationship()

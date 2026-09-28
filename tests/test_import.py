@@ -1,5 +1,6 @@
 """Import, dedupe, and rules-at-import tests on the synthetic fixtures."""
 
+import datetime as dt
 from pathlib import Path
 
 import pytest
@@ -19,15 +20,18 @@ def make_account(db, name, slug, kind="credit"):
 
 
 def upload(client, account_id, path: Path, **flags):
+    """Preview then commit one file. The account is detected from the file; the
+    account_id argument is only used to confirm what was detected."""
     with path.open("rb") as f:
-        r = client.post(
-            "/import/preview", data={"account_id": account_id}, files={"file": (path.name, f)}
-        )
+        r = client.post("/import/preview", files={"files": (path.name, f)})
     assert r.status_code == 200, r.text
     import re
 
-    sha = re.search(r'name="sha" value="([0-9a-f]+)"', r.text).group(1)
-    data = {"account_id": account_id, "sha": sha, "filename": path.name, **flags}
+    sha = re.search(r'name="sha_0" value="([0-9a-f]+)"', r.text).group(1)
+    detected = re.search(r'name="account_id_0".*?value="(\d+)" selected', r.text, re.S).group(1)
+    assert int(detected) == account_id, "detected the wrong account"
+    data = {"account_id_0": account_id, "sha_0": sha, "filename_0": path.name}
+    data.update({k.replace("flag_", "flag_0_"): v for k, v in flags.items()})
     r2 = client.post("/import/commit", data=data, follow_redirects=False)
     assert r2.status_code == 303, r2.text
     return r.text
@@ -145,13 +149,101 @@ def test_undo_import_keeps_edited_rows(logged_in, db, card):
     assert kept.notes == "weekly shop" and kept.import_id is None
 
 
-def test_wrong_profile_gives_readable_error(logged_in, db):
-    acct = make_account(db, "Apple Card", "chase_card")  # wrong on purpose
+def test_unknown_layout_and_missing_account_give_readable_errors(logged_in, db):
+    make_account(db, "Chase card", "chase_card")
     with (FIX / "apple_card.csv").open("rb") as f:
-        r = logged_in.post(
-            "/import/preview", data={"account_id": acct.id}, files={"file": ("x.csv", f)}
-        )
-    assert "not found" in r.text and "Purchased By" in r.text
+        r = logged_in.post("/import/preview", files={"files": ("x.csv", f)})
+    assert "looks like a Apple Card export, but no account uses that layout" in r.text
+    r = logged_in.post("/import/preview", files={"files": ("odd.csv", b"Foo,Bar,Baz\n1,2,3\n")})
+    assert "recognise the columns" in r.text and "Foo, Bar, Baz" in r.text
+
+
+def test_detects_layout_and_account_for_several_files_at_once(logged_in, db):
+    card = make_account(db, "Chase card", "chase_card")
+    chk = make_account(db, "Chase checking", "chase_checking", kind="checking")
+    apple = make_account(db, "Apple Card", "apple_card")
+    files = [
+        ("files", ("Chase8393_Activity.csv", (FIX / "chase_card_a.csv").read_bytes())),
+        ("files", ("Chase2630_Activity.csv", (FIX / "chase_checking.csv").read_bytes())),
+        ("files", ("Apple Card Transactions.csv", (FIX / "apple_card.csv").read_bytes())),
+    ]
+    r = logged_in.post("/import/preview", files=files)
+    assert r.status_code == 200
+    import re
+
+    picked = re.findall(r'name="account_id_(\d)".*?value="(\d+)" selected', r.text, re.S)
+    assert dict(picked) == {"0": str(card.id), "1": str(chk.id), "2": str(apple.id)}
+    shas = re.findall(r'name="sha_(\d)" value="([0-9a-f]+)"', r.text)
+    data = {}
+    for i, sha in shas:
+        data[f"sha_{i}"] = sha
+        data[f"filename_{i}"] = f"f{i}.csv"
+        data[f"account_id_{i}"] = dict(picked)[i]
+    r = logged_in.post("/import/commit", data=data, follow_redirects=False)
+    assert r.status_code == 303
+    assert count(db, card.id) == 9 and count(db, chk.id) == 8 and count(db, apple.id) == 10
+
+
+def test_two_accounts_same_layout_use_filename_hint(logged_in, db):
+    a = make_account(db, "Chase Sapphire", "chase_card")
+    b = make_account(db, "Chase Freedom", "chase_card")
+    import re
+
+    with (FIX / "chase_card_a.csv").open("rb") as f:
+        r = logged_in.post("/import/preview", files={"files": ("Chase1418_Activity.csv", f)})
+    assert "Two or more accounts use this layout" in r.text
+    assert 'name="hint_0" value="1418"' in r.text
+    sha = re.search(r'name="sha_0" value="([0-9a-f]+)"', r.text).group(1)
+    r = logged_in.post(
+        "/import/commit",
+        data={"sha_0": sha, "filename_0": "Chase1418_Activity.csv", "account_id_0": b.id,
+              "remember_0": "1", "hint_0": "1418"},
+        follow_redirects=False,
+    )  # fmt: skip
+    assert r.status_code == 303
+    db.expire_all()
+    assert db.get(Account, b.id).import_hint == "1418" and count(db, b.id) == 9
+    # next time the file name decides, no question asked
+    with (FIX / "chase_card_b.csv").open("rb") as f:
+        r = logged_in.post("/import/preview", files={"files": ("Chase1418_Activity.csv", f)})
+    assert "Two or more accounts" not in r.text
+    assert re.search(rf'value="{b.id}" selected', r.text)
+    assert a.id  # untouched
+
+
+def test_rows_before_tracking_start_are_never_imported(logged_in, db):
+    card = make_account(db, "Chase card", "chase_card")
+    old = (
+        b"Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n"
+        b"07/31/2026,08/01/2026,OLD SHOP,Shopping,Sale,-5.00,\n"
+        b"08/01/2026,08/02/2026,NEW SHOP,Shopping,Sale,-6.00,\n"
+    )
+    r = logged_in.post("/import/preview", files={"files": ("Chase.csv", old)})
+    assert "Before Aug 01 2026" in r.text
+    import re
+
+    sha = re.search(r'name="sha_0" value="([0-9a-f]+)"', r.text).group(1)
+    logged_in.post(
+        "/import/commit", data={"sha_0": sha, "filename_0": "c.csv", "account_id_0": card.id},
+        follow_redirects=False,
+    )  # fmt: skip
+    rows = db.scalars(select(Transaction)).all()
+    assert [t.description_raw for t in rows] == ["NEW SHOP"]
+    imp = db.scalar(select(Import))
+    assert imp.rows_skipped_old == 1 and imp.rows_total == 2
+
+
+def test_changing_tracking_start_excludes_existing_rows(logged_in, db):
+    card = make_account(db, "Chase card", "chase_card")
+    upload(logged_in, card.id, FIX / "chase_card_a.csv")  # Sep 10 to Sep 17
+    r = logged_in.post(
+        "/settings/tracking-start", data={"start": "2026-09-15"}, follow_redirects=False
+    )
+    assert r.status_code == 303 and "Excluded 2" in (r.cookies.get("bt_flash") or "")
+    db.expire_all()
+    early = db.scalars(select(Transaction).where(Transaction.date < dt.date(2026, 9, 15))).all()
+    assert early and all(t.is_excluded for t in early)
+    assert "2026-09-15" in logged_in.get("/settings").text
 
 
 def test_custom_profile_flow(logged_in, db):
@@ -185,3 +277,12 @@ def test_custom_profile_flow(logged_in, db):
     )
     assert [r.amount for r in rows] == [-1250, 100000]
     assert [r.kind for r in rows] == ["expense", "income"]
+
+
+def test_filename_hint_prefers_digits_attached_to_a_word():
+    from app.importer.detect import filename_digits
+
+    assert filename_digits("Chase8393_Activity_20260920.csv") == "8393"
+    assert filename_digits("ae2a4564-Chase2630_Activity.csv") == "2630"
+    assert filename_digits("Apple_Card_Transactions_Sep_01_2026.csv") is None
+    assert filename_digits("statement 1418 sept.csv") == "1418"

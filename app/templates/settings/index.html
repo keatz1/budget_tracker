@@ -40,6 +40,15 @@
 </section>
 
 <section class="panel">
+  <h2>Tracking starts</h2>
+  <form method="post" action="/settings/tracking-start" class="form inline" hx-boost="false">
+    <label>Ignore everything before <input type="date" name="start" value="{{ start.isoformat() }}" required></label>
+    <button class="primary" type="submit">Save</button>
+  </form>
+  <p class="muted small">Rows dated before this are never imported, and anything already imported before it is excluded from budgets and dashboards. They stay visible under Transactions → Excluded.</p>
+</section>
+
+<section class="panel">
   <h2>Data</h2>
   <div class="actions">
     <a class="button" href="/settings/export.csv" hx-boost="false">Export all transactions (CSV)</a>

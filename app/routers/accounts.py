@@ -39,12 +39,14 @@ def create(
     kind: Annotated[str, Form()],
     institution: Annotated[str, Form()] = "",
     csv_profile_id: Annotated[str, Form()] = "",
+    import_hint: Annotated[str, Form()] = "",
 ):
     acct = Account(
         name=name.strip(),
         institution=institution.strip() or None,
         kind=kind,
         csv_profile_id=int(csv_profile_id) if csv_profile_id else None,
+        import_hint=import_hint.strip() or None,
     )
     db.add(acct)
     db.commit()
@@ -76,6 +78,7 @@ def update(
     kind: Annotated[str, Form()],
     institution: Annotated[str, Form()] = "",
     csv_profile_id: Annotated[str, Form()] = "",
+    import_hint: Annotated[str, Form()] = "",
     is_archived: Annotated[str | None, Form()] = None,
 ):
     acct = db.get(Account, account_id)
@@ -85,6 +88,7 @@ def update(
     acct.institution = institution.strip() or None
     acct.kind = kind
     acct.csv_profile_id = int(csv_profile_id) if csv_profile_id else None
+    acct.import_hint = import_hint.strip() or None
     acct.is_archived = bool(is_archived)
     db.commit()
     return redirect("/accounts", flash="Saved.")

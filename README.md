@@ -29,7 +29,7 @@ make dev                        # http://localhost:8000
 The first visit asks you to create the admin user. Then:
 
 1. **Accounts**: add one per card or bank account and pick its CSV profile (Chase credit card, Chase checking, Apple Card are built in).
-2. **Import**: upload an export. The preview shows what's new, what was already imported, and anything that needs a look. Nothing is saved until you confirm.
+2. **Import**: upload one or more exports. The app recognises each file's layout from its headers and picks the account that uses it. The preview shows what's new, what was already imported, what needs a look, and what falls before the tracking start date (Settings, default Aug 1 2026). Nothing is saved until you confirm.
 3. **Review**: uncategorised spending grouped by merchant. Pick a category once per group. Leave "make a rule" on and the next import sorts itself.
 4. **Budgets**: a monthly amount per category, with an optional override for a single month.
 5. **Settings**: invite the second person. They get a link to set their password.
@@ -104,6 +104,10 @@ All settings are environment variables with a `BT_` prefix, read from `.env`:
 Export a running list from the bank as often as you like. Each row gets a fingerprint from the account, transaction date, post date, amount, cleaned description, running balance if the bank gives one, and a counter for identical rows on the same day. A row whose fingerprint already exists is skipped. A unique index in the database enforces it. Rows already imported are never changed by an import, so your categories and notes stay put.
 
 A row with the same amount within three days of an existing one but a different description is flagged on the preview. That's usually a pending charge that posted under a new name. Skip is the default; keep it if it's really a separate purchase.
+
+## Two accounts with the same layout
+
+Two Chase cards export identical columns. Set "Text in this account's file names" on each account (Chase puts the last four digits in the file name, like `Chase8393_Activity.csv`). The first time a file is ambiguous the preview asks which account it is and offers to remember the digits for you.
 
 ## Adding a bank
 

@@ -1,17 +1,19 @@
 """Stage an upload, preview it, commit it, undo it."""
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.app_settings import tracking_start
 from app.audit import log
 from app.config import settings
 from app.importer.dedupe import Classified, classify
-from app.importer.parser import ParsedRow, ParseError, parse_csv
-from app.models import Account, Import, Rule, Transaction, User
+from app.importer.detect import AccountMatch, detect_account, detect_profile
+from app.importer.parser import ParsedRow, ParseError, parse_csv, sniff_headers
+from app.models import Account, CsvProfile, Import, Rule, Transaction, User
 from app.models.base import utcnow
 from app.rules.engine import first_match, load_rules
 
@@ -25,6 +27,12 @@ class Staged:
     classified: Classified
     already_imported: Import | None
     predictions: dict[int, Rule | None]  # row.index -> rule that would fire
+    skipped_old: int = 0  # rows dated before the tracking start
+    profile: CsvProfile | None = None
+    match: AccountMatch | None = None
+    account: Account | None = None
+    error: str | None = None
+    index: int = 0
 
 
 def _staging_path(sha: str) -> Path:
@@ -32,14 +40,52 @@ def _staging_path(sha: str) -> Path:
     return settings.upload_dir / f"{sha}.csv"
 
 
-def stage(db: Session, account: Account, filename: str, data: bytes) -> Staged:
-    if account.csv_profile is None:
+def _empty(sha: str, filename: str, path: Path, error: str, index: int = 0) -> Staged:
+    return Staged(sha, filename, path, [], Classified(), None, {}, error=error, index=index)
+
+
+def detect(db: Session, filename: str, data: bytes, index: int = 0) -> Staged:
+    """Recognise the layout and the account from the file alone, then stage it."""
+    sha = hashlib.sha256(data).hexdigest()
+    path = _staging_path(sha)
+    path.write_bytes(data)
+    headers = sniff_headers(data)
+    profile = detect_profile(db, headers)
+    if profile is None:
+        return _empty(
+            sha, filename, path,
+            f"Didn't recognise the columns in {filename}: {', '.join(headers[:8])}. "
+            "Add a CSV profile for this bank under Import → CSV profiles.",
+            index,
+        )  # fmt: skip
+    match = detect_account(db, profile, filename)
+    if not match.candidates:
+        return _empty(
+            sha, filename, path,
+            f"{filename} looks like a {profile.name} export, but no account uses that layout. "
+            "Add the account first and pick that profile.",
+            index,
+        )  # fmt: skip
+    account = match.account or match.candidates[0]
+    st = stage(db, account, filename, data, profile=profile)
+    st.profile, st.match, st.account, st.index = profile, match, account, index
+    return st
+
+
+def stage(
+    db: Session, account: Account, filename: str, data: bytes, profile: CsvProfile | None = None
+) -> Staged:
+    profile = profile or account.csv_profile
+    if profile is None:
         raise ParseError(f"{account.name} has no CSV profile. Set one on the account first.")
     sha = hashlib.sha256(data).hexdigest()
     path = _staging_path(sha)
     path.write_bytes(data)
-    rows = parse_csv(data, account.csv_profile)
-    classified = classify(db, account.id, rows)
+    rows = parse_csv(data, profile)
+    start = tracking_start(db)
+    kept = [r for r in rows if r.date >= start]
+    skipped_old = len(rows) - len(kept)
+    classified = classify(db, account.id, kept)
     prior = db.scalar(
         select(Import).where(
             Import.account_id == account.id,
@@ -52,14 +98,18 @@ def stage(db: Session, account: Account, filename: str, data: bytes) -> Staged:
         r.index: first_match(rules, _to_txn(account.id, r))
         for r in classified.new + [f.row for f in classified.flagged]
     }
-    return Staged(sha, filename, path, rows, classified, prior, predictions)
+    st = Staged(sha, filename, path, kept, classified, prior, predictions, skipped_old)
+    st.account, st.profile = account, profile
+    return st
 
 
 def restage(db: Session, account: Account, sha: str, filename: str) -> Staged:
     path = _staging_path(sha)
     if not path.exists():
         raise ParseError("The uploaded file has gone. Please upload it again.")
-    return stage(db, account, filename, path.read_bytes())
+    data = path.read_bytes()
+    profile = detect_profile(db, sniff_headers(data)) or account.csv_profile
+    return stage(db, account, filename, data, profile=profile)
 
 
 def _to_txn(account_id: int, r: ParsedRow) -> Transaction:
@@ -91,9 +141,10 @@ def commit(
         user_id=user.id,
         filename=staged.filename,
         file_sha256=staged.sha,
-        rows_total=staged.classified.total,
+        rows_total=staged.classified.total + staged.skipped_old,
         rows_duplicate=len(staged.classified.duplicate),
         rows_flagged=len(staged.classified.flagged),
+        rows_skipped_old=staged.skipped_old,
     )
     db.add(imp)
     db.flush()
@@ -131,3 +182,6 @@ def undo(db: Session, imp: Import, user: User) -> tuple[int, int]:
     log(db, user.id, "import", imp.id, "undo", after={"deleted": deleted, "kept": kept})
     db.commit()
     return deleted, kept
+
+
+__all__ = ["Staged", "detect", "stage", "restage", "commit", "undo", "field"]

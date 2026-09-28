@@ -6,9 +6,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy import text as sa_text
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import joinedload
 
+from app.app_settings import TRACKING_START, set_setting, tracking_start
 from app.auth.service import hash_password, new_invite_token, verify_password
 from app.config import settings
 from app.deps import DB, AdminUser, CurrentUser, redirect, render
@@ -34,7 +37,36 @@ def index(request: Request, db: DB, user: CurrentUser):
     users = db.scalars(select(User).order_by(User.id)).all()
     backups = sorted(p.name for p in _backup_dir().glob("*.db"))[-5:]
     base_url = str(request.base_url).rstrip("/")
-    return render(request, "settings/index.html", users=users, backups=backups, base_url=base_url)
+    return render(
+        request,
+        "settings/index.html",
+        users=users,
+        backups=backups,
+        base_url=base_url,
+        start=tracking_start(db),
+    )
+
+
+@router.post("/settings/tracking-start")
+def set_tracking_start(request: Request, db: DB, user: CurrentUser, start: Annotated[str, Form()]):
+    try:
+        d = datetime.fromisoformat(start).date()
+    except ValueError:
+        return redirect("/settings", flash="That isn't a date.")
+    set_setting(db, TRACKING_START, d.isoformat())
+    n = db.scalar(
+        select(func.count()).where(Transaction.date < d, Transaction.is_excluded.is_(False))
+    )
+    db.execute(
+        sa_update(Transaction)
+        .where(Transaction.date < d, Transaction.is_excluded.is_(False))
+        .values(is_excluded=True)
+    )
+    db.commit()
+    msg = f"Tracking starts {d.strftime('%b %d %Y')}."
+    if n:
+        msg += f" Excluded {n} earlier transactions."
+    return redirect("/settings", flash=msg)
 
 
 @router.post("/settings/users")
@@ -72,7 +104,7 @@ def change_password(
 
 @router.post("/settings/backup")
 def backup(request: Request, db: DB, user: CurrentUser):
-    db.execute(__import__("sqlalchemy").text("PRAGMA wal_checkpoint(TRUNCATE)"))
+    db.execute(sa_text("PRAGMA wal_checkpoint(TRUNCATE)"))
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     dest = _backup_dir() / f"budget-{stamp}.db"
     shutil.copy2(settings.database_path, dest)

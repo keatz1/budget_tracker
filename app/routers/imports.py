@@ -1,9 +1,12 @@
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
+from app.app_settings import tracking_start
 from app.deps import DB, CurrentUser, redirect, render
 from app.importer import service
 from app.importer.parser import ParseError, sniff_headers
@@ -26,71 +29,75 @@ def index(request: Request, db: DB, user: CurrentUser, error: str | None = None)
     recent = db.scalars(
         select(Import).options(joinedload(Import.account)).order_by(Import.id.desc()).limit(5)
     ).all()
-    last = recent[0].account_id if recent else None
     return render(
         request,
         "import/index.html",
         accounts=_accounts(db),
         recent=recent,
-        last_account_id=last,
         error=error,
+        start=tracking_start(db),
     )
 
 
 @router.post("/preview")
-async def preview(
-    request: Request,
-    db: DB,
-    user: CurrentUser,
-    account_id: Annotated[int, Form()],
-    file: UploadFile,
-):
-    account = db.get(Account, account_id)
-    if not account:
-        return redirect("/import", flash="Unknown account.")
-    data = await file.read()
-    try:
-        staged = service.stage(db, account, file.filename or "upload.csv", data)
-    except (ParseError, ValueError) as e:
-        return render(
-            request,
-            "import/index.html",
-            accounts=_accounts(db),
-            recent=[],
-            last_account_id=account_id,
-            error=str(e),
-        )
+async def preview(request: Request, db: DB, user: CurrentUser):
+    form = await request.form()
+    uploads = [
+        f for f in form.getlist("files") if isinstance(f, StarletteUploadFile) and f.filename
+    ]
+    if not uploads:
+        return redirect("/import", flash="Pick at least one CSV file.")
+    staged = []
+    for i, f in enumerate(uploads):
+        data = await f.read()
+        try:
+            staged.append(service.detect(db, f.filename or "upload.csv", data, index=i))
+        except (ParseError, ValueError) as e:
+            staged.append(service._empty("", f.filename or "upload.csv", Path(), str(e), i))
     return render(
-        request, "import/preview.html", account=account, staged=staged, c=staged.classified
+        request,
+        "import/preview.html",
+        staged=staged,
+        accounts=_accounts(db),
+        start=tracking_start(db),
     )
 
 
 @router.post("/commit")
-async def commit(
-    request: Request,
-    db: DB,
-    user: CurrentUser,
-    account_id: Annotated[int, Form()],
-    sha: Annotated[str, Form()],
-    filename: Annotated[str, Form()],
-):
-    account = db.get(Account, account_id)
-    if not account:
-        return redirect("/import", flash="Unknown account.")
+async def commit(request: Request, db: DB, user: CurrentUser):
     form = await request.form()
-    keep = {
-        int(k.removeprefix("flag_"))
-        for k, v in form.multi_items()
-        if k.startswith("flag_") and v == "keep"
-    }
-    try:
-        staged = service.restage(db, account, sha, filename)
-    except ParseError as e:
-        return redirect("/import", flash=str(e))
-    imp = service.commit(db, account, user, staged, keep)
+    total_new = 0
+    names = []
+    i = 0
+    while f"sha_{i}" in form:
+        sha = str(form.get(f"sha_{i}") or "")
+        filename = str(form.get(f"filename_{i}") or "upload.csv")
+        acct_raw = str(form.get(f"account_id_{i}") or "")
+        i += 1
+        if not sha or not acct_raw.isdigit():
+            continue
+        account = db.get(Account, int(acct_raw))
+        if not account:
+            continue
+        if form.get(f"remember_{i - 1}") and form.get(f"hint_{i - 1}"):
+            account.import_hint = str(form.get(f"hint_{i - 1}"))
+        keep = {
+            int(k.removeprefix(f"flag_{i - 1}_"))
+            for k, v in form.multi_items()
+            if k.startswith(f"flag_{i - 1}_") and v == "keep"
+        }
+        try:
+            st = service.restage(db, account, sha, filename)
+        except ParseError as e:
+            return redirect("/import", flash=str(e))
+        imp = service.commit(db, account, user, st, keep)
+        total_new += imp.rows_new
+        names.append(account.name)
+    if not names:
+        return redirect("/import", flash="Nothing was imported.")
     return redirect(
-        f"/review?import_id={imp.id}",
-        flash=f"Imported {imp.rows_new} new transactions from {account.name}.",
+        "/review",
+        flash=f"Imported {total_new} new transactions from {', '.join(dict.fromkeys(names))}.",
     )
 
 

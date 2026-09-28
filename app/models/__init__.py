@@ -1,6 +1,7 @@
 from app.models.base import Base
 from app.models.core import (
     Account,
+    AppSetting,
     AuditLog,
     Budget,
     Category,
@@ -15,6 +16,7 @@ from app.models.core import (
 __all__ = [
     "Base",
     "Account",
+    "AppSetting",
     "AuditLog",
     "Budget",
     "Category",

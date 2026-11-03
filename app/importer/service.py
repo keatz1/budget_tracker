@@ -44,6 +44,13 @@ def _empty(sha: str, filename: str, path: Path, error: str, index: int = 0) -> S
     return Staged(sha, filename, path, [], Classified(), None, {}, error=error, index=index)
 
 
+def _sample(data: bytes, profile: CsvProfile, rows: int = 3) -> str:
+    """The first few data lines, for account hints that live in the file itself."""
+    lines = data.decode("utf-8-sig", errors="replace").splitlines()
+    start = profile.skip_rows + 1  # past the header
+    return "\n".join(lines[start : start + rows])
+
+
 def detect(db: Session, filename: str, data: bytes, index: int = 0) -> Staged:
     """Recognise the layout and the account from the file alone, then stage it."""
     sha = hashlib.sha256(data).hexdigest()
@@ -58,7 +65,7 @@ def detect(db: Session, filename: str, data: bytes, index: int = 0) -> Staged:
             "Add a CSV profile for this bank under Import → CSV profiles.",
             index,
         )  # fmt: skip
-    match = detect_account(db, profile, filename)
+    match = detect_account(db, profile, filename, sample=_sample(data, profile))
     if not match.candidates:
         return _empty(
             sha, filename, path,

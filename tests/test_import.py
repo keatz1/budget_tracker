@@ -286,3 +286,89 @@ def test_filename_hint_prefers_digits_attached_to_a_word():
     assert filename_digits("ae2a4564-Chase2630_Activity.csv") == "2630"
     assert filename_digits("Apple_Card_Transactions_Sep_01_2026.csv") is None
     assert filename_digits("statement 1418 sept.csv") == "1418"
+
+
+def test_amex_sign_flip_payment_and_holder(logged_in, db):
+    acct = make_account(db, "Amex Delta", "amex")
+    upload(logged_in, acct.id, FIX / "amex.csv")
+    assert count(db, acct.id) == 4
+    rows = db.scalars(select(Transaction).order_by(Transaction.date)).all()
+    chewy = [t for t in rows if t.description_raw.startswith("CHEWY")]
+    assert [t.amount for t in chewy] == [-5491, -25281]  # charges become money out
+    assert {t.card_holder for t in chewy} == {"SALLY EXAMPLE", "NIKITA EXAMPLE"}
+    assert all(t.kind == "expense" and not t.is_excluded for t in chewy)
+    pay = db.scalar(select(Transaction).where(Transaction.description_raw.like("%THANK YOU")))
+    assert pay.amount == 10641 and pay.kind == "transfer" and pay.is_excluded
+    # the same export again adds nothing
+    upload(logged_in, acct.id, FIX / "amex.csv")
+    assert count(db, acct.id) == 4
+
+
+def test_amex_extended_details_export_uses_reference_and_category(logged_in, db):
+    acct = make_account(db, "Amex Delta", "amex")
+    preview = upload(logged_in, acct.id, FIX / "amex_extended.csv")
+    assert "American Express" in preview and count(db, acct.id) == 2
+    chewy = db.scalar(select(Transaction).where(Transaction.description_raw.like("CHEWY%")))
+    assert chewy.amount == -25281
+    assert chewy.bank_category == "Merchandise & Supplies-Internet Purchase"
+    assert "bank says Merchandise" in preview
+
+
+def test_amex_files_mixed_with_other_banks_in_one_upload(logged_in, db):
+    card = make_account(db, "Chase card", "chase_card")
+    chk = make_account(db, "Chase checking", "chase_checking", kind="checking")
+    apple = make_account(db, "Apple Card", "apple_card")
+    amex = make_account(db, "Amex", "amex")
+    files = [
+        ("files", ("activity.csv", (FIX / "amex.csv").read_bytes())),
+        ("files", ("Chase8393_Activity.csv", (FIX / "chase_card_a.csv").read_bytes())),
+        ("files", ("Chase2630_Activity.csv", (FIX / "chase_checking.csv").read_bytes())),
+        ("files", ("Apple Card Transactions.csv", (FIX / "apple_card.csv").read_bytes())),
+    ]
+    r = logged_in.post("/import/preview", files=files)
+    assert r.status_code == 200
+    import re
+
+    picked = dict(re.findall(r'name="account_id_(\d)".*?value="(\d+)" selected', r.text, re.S))
+    assert picked == {"0": str(amex.id), "1": str(card.id), "2": str(chk.id), "3": str(apple.id)}
+    data = {}
+    for i, sha in re.findall(r'name="sha_(\d)" value="([0-9a-f]+)"', r.text):
+        data.update({f"sha_{i}": sha, f"filename_{i}": f"f{i}.csv", f"account_id_{i}": picked[i]})
+    r = logged_in.post("/import/commit", data=data, follow_redirects=False)
+    assert r.status_code == 303
+    assert "Amex" in r.cookies.get("bt_flash", "") and "Chase card" in r.cookies.get("bt_flash", "")
+    assert count(db, amex.id) == 4 and count(db, card.id) == 9
+    assert count(db, chk.id) == 8 and count(db, apple.id) == 10
+
+
+def test_two_amex_cards_use_the_account_column_hint(logged_in, db):
+    a = make_account(db, "Amex Delta", "amex")
+    b = make_account(db, "Amex Gold", "amex")
+    import re
+
+    with (FIX / "amex.csv").open("rb") as f:
+        r = logged_in.post("/import/preview", files={"files": ("activity.csv", f)})
+    assert "Two or more accounts use this layout" in r.text
+    assert 'name="hint_0" value="21005"' in r.text  # from the Account # column, not the name
+    sha = re.search(r'name="sha_0" value="([0-9a-f]+)"', r.text).group(1)
+    r = logged_in.post(
+        "/import/commit",
+        data={"sha_0": sha, "filename_0": "activity.csv", "account_id_0": b.id,
+              "remember_0": "1", "hint_0": "21005"},
+        follow_redirects=False,
+    )  # fmt: skip
+    assert r.status_code == 303
+    db.expire_all()
+    assert db.get(Account, b.id).import_hint == "21005" and count(db, b.id) == 4
+    with (FIX / "amex_extended.csv").open("rb") as f:
+        r = logged_in.post("/import/preview", files={"files": ("activity.csv", f)})
+    assert "Two or more accounts" not in r.text
+    assert re.search(rf'value="{b.id}" selected', r.text)
+    assert count(db, a.id) == 0
+
+
+def test_account_column_digits():
+    from app.importer.detect import account_column_digits
+
+    assert account_column_digits("10/29/2026,CHEWY.COM,NIKITA,-21005,252.81") == "21005"
+    assert account_column_digits("10/29/2026,SHOP,Sale,-25.10,") is None

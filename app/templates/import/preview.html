@@ -25,7 +25,7 @@
       </select>
       {% if st.match and not st.match.account %}
       <small class="notice" style="display:block;padding:6px 10px;margin-top:4px">Two or more accounts use this layout, so check this is the right one.
-        {% if st.match.hint_from_filename %}<label class="check small" style="margin:6px 0 0"><input type="checkbox" name="remember_{{ i }}" value="1" checked><input type="hidden" name="hint_{{ i }}" value="{{ st.match.hint_from_filename }}"> Remember: files with "{{ st.match.hint_from_filename }}" in the name are this account</label>{% endif %}
+        {% if st.match.hint_from_filename %}<label class="check small" style="margin:6px 0 0"><input type="checkbox" name="remember_{{ i }}" value="1" checked><input type="hidden" name="hint_{{ i }}" value="{{ st.match.hint_from_filename }}"> Remember: files with "{{ st.match.hint_from_filename }}" in the name or the account column are this account</label>{% endif %}
       </small>
       {% endif %}
     </label>

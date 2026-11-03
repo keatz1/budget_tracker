@@ -62,7 +62,19 @@ def filename_digits(filename: str) -> str | None:
     return None
 
 
-def detect_account(db: Session, profile: CsvProfile, filename: str) -> AccountMatch:
+def account_column_digits(sample: str) -> str | None:
+    """The card's last digits from an "Account #" column, like the 32007 in Amex's
+    "-32007". Amex names every export activity.csv, so the file name says nothing."""
+    m = re.search(r"(?:^|,)\"?-(\d{4,6})\"?(?=,|$)", sample, re.MULTILINE)
+    return m.group(1) if m else None
+
+
+def detect_account(
+    db: Session, profile: CsvProfile, filename: str, sample: str = ""
+) -> AccountMatch:
+    """Pick the account for a file of this layout. With several candidates the
+    account's import hint is looked for in the file name, then in the first few
+    lines of the file (an Amex export carries the card's last digits in a column)."""
     candidates = list(
         db.scalars(
             select(Account)
@@ -70,11 +82,11 @@ def detect_account(db: Session, profile: CsvProfile, filename: str) -> AccountMa
             .order_by(Account.name)
         )
     )
-    hint = filename_digits(filename)
+    hint = filename_digits(filename) or account_column_digits(sample)
     if len(candidates) == 1:
         return AccountMatch(candidates[0], candidates, hint)
-    lowered = filename.lower()
-    hinted = [a for a in candidates if a.import_hint and a.import_hint.lower() in lowered]
-    if len(hinted) == 1:
-        return AccountMatch(hinted[0], candidates, hint)
+    for text in (filename.lower(), sample.lower()):
+        hinted = [a for a in candidates if a.import_hint and a.import_hint.lower() in text]
+        if len(hinted) == 1:
+            return AccountMatch(hinted[0], candidates, hint)
     return AccountMatch(None, candidates, hint)

@@ -51,6 +51,22 @@ BUILTIN_PROFILES: list[dict] = [
         "negate_amounts": True,
         "positive_kind": "expense",
     },
+    {
+        # amex.com -> Statements & Activity -> Download -> CSV. The plain export has
+        # five columns; the "Extended Details" export adds Reference and Category,
+        # which are picked up when present.
+        "slug": "amex",
+        "name": "American Express",
+        "date_format": "%m/%d/%Y",
+        "col_date": "Date",
+        "col_description": "Description",
+        "col_amount": "Amount",
+        "col_card_holder": "Card Member",
+        "col_reference": "Reference",
+        "col_bank_category": "Category",
+        "negate_amounts": True,  # Amex writes charges as positive numbers
+        "positive_kind": "expense",
+    },
 ]
 
 STARTER_CATEGORIES: list[tuple[str, str, str]] = [
@@ -125,6 +141,16 @@ DEFAULT_RULES: list[dict] = [
         "priority": 11,
     },
     {
+        # Amex has no Type column; payments are "MOBILE PAYMENT - THANK YOU",
+        # "AUTOPAY PAYMENT - THANK YOU", "ONLINE PAYMENT - THANK YOU".
+        "name": "Amex card payment",
+        "match_type": "contains",
+        "pattern": "PAYMENT - THANK YOU",
+        "set_kind": "transfer",
+        "set_excluded": True,
+        "priority": 11,
+    },
+    {
         "name": "Schwab transfer",
         "match_type": "contains",
         "pattern": "SCHWAB BANK",
@@ -171,7 +197,9 @@ def seed(db: Session) -> None:
             .where(Transaction.date < date.fromisoformat(DEFAULT_TRACKING_START))
             .values(is_excluded=True)
         )
-    if db.scalar(select(Rule.id).limit(1)) is None:
-        for r in DEFAULT_RULES:
+    # Default rules are added by name, so a new bank's rule reaches existing installs.
+    have = set(db.scalars(select(Rule.name)).all())
+    for r in DEFAULT_RULES:
+        if r["name"] not in have:
             db.add(Rule(**r))
     db.commit()

@@ -12,7 +12,7 @@
 <form method="post" action="/import/preview" enctype="multipart/form-data" class="form" hx-boost="false">
   <label>CSV files from the bank <input type="file" name="files" accept=".csv,text/csv" multiple required></label>
   <button class="primary" type="submit">Preview</button>
-  <p class="muted small">Pick one file or several at once. The app works out which bank and account each one belongs to from its columns. Rows already imported are skipped, and rows before {{ start.strftime('%b %d %Y') }} are ignored (change that in Settings). Nothing is saved until you confirm the preview.</p>
+  <p class="muted small">Pick one file or several at once, from any mix of banks (Chase, Apple Card and American Express are built in). The app works out which bank and account each one belongs to from its columns. Rows already imported are skipped, and rows before {{ start.strftime('%b %d %Y') }} are ignored (change that in Settings). Nothing is saved until you confirm the preview.</p>
 </form>
 {% endif %}
 {% if recent %}

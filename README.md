@@ -28,7 +28,7 @@ make dev                        # http://localhost:8000
 
 The first visit asks you to create the admin user. Then:
 
-1. **Accounts**: add one per card or bank account and pick its CSV profile (Chase credit card, Chase checking, Apple Card are built in).
+1. **Accounts**: add one per card or bank account and pick its CSV profile (Chase credit card, Chase checking, Apple Card and American Express are built in).
 2. **Import**: upload one or more exports. The app recognises each file's layout from its headers and picks the account that uses it. The preview shows what's new, what was already imported, what needs a look, and what falls before the tracking start date (Settings, default Aug 1 2026). Nothing is saved until you confirm.
 3. **Review**: uncategorised spending grouped by merchant. Pick a category once per group. Leave "make a rule" on and the next import sorts itself.
 4. **Budgets**: a monthly amount per category, with an optional override for a single month.
@@ -107,7 +107,7 @@ A row with the same amount within three days of an existing one but a different 
 
 ## Two accounts with the same layout
 
-Two Chase cards export identical columns. Set "Text in this account's file names" on each account (Chase puts the last four digits in the file name, like `Chase8393_Activity.csv`). The first time a file is ambiguous the preview asks which account it is and offers to remember the digits for you.
+Two Chase cards export identical columns. Set "Text in this account's file names" on each account (Chase puts the last four digits in the file name, like `Chase8393_Activity.csv`). The first time a file is ambiguous the preview asks which account it is and offers to remember the digits for you. Amex names every export `activity.csv`, so for two Amex cards the hint is matched against the `Account #` column instead (the `-21005` in each row).
 
 ## Adding a bank
 
